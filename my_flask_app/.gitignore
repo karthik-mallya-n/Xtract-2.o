@@ -1,0 +1,54 @@
+# Flask Backend Specific .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Flask instance folder
+instance/
+
+# Application uploads and models
+uploads/
+models/
+logs/
+
+# Dataset files
+*.csv
+*.xlsx
+*.xls
+*.json
+*.parquet
+
+# Model files
+*.joblib
+*.pkl
+*.pickle
+*.model
+*.h5
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Redis
+dump.rdb
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
