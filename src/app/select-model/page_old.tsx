@@ -351,3 +351,83 @@ export default function SelectModelPage() {
     </div>
   );
 }
+                🎯 Our Top Recommendation
+              </h2>
+              <p className="text-gray-600">
+                This model is optimally suited for your dataset characteristics
+              </p>
+            </div>
+            
+            <div className="max-w-2xl mx-auto">
+              <ModelCard
+                name={recommendedModel.name}
+                description={recommendedModel.description}
+                accuracy={recommendedModel.accuracy}
+                isRecommended={true}
+                onSelect={() => handleModelSelect(recommendedModel.id)}
+                isSelected={selectedModel === recommendedModel.id}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Other Models Section */}
+        <div className="mb-12">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Alternative Models
+            </h2>
+            <p className="text-gray-600">
+              Explore other models that could work well with your data
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {otherModels.map((model) => (
+              <ModelCard
+                key={model.id}
+                name={model.name}
+                description={model.description}
+                accuracy={model.accuracy}
+                isRecommended={false}
+                onSelect={() => handleModelSelect(model.id)}
+                isSelected={selectedModel === model.id}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="text-center">
+          <div className="bg-white rounded-lg shadow-md p-6 max-w-md mx-auto">
+            {selectedModel ? (
+              <div>
+                <p className="text-gray-600 mb-4">
+                  Ready to train your {models.find(m => m.id === selectedModel)?.name} model?
+                </p>
+                <Link
+                  href="/training-status"
+                  className="inline-flex items-center px-8 py-3 text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"
+                >
+                  Start Training
+                </Link>
+              </div>
+            ) : (
+              <div>
+                <p className="text-gray-500 mb-4">
+                  Please select a model to continue
+                </p>
+                <button
+                  disabled
+                  className="px-8 py-3 text-lg font-medium text-gray-400 bg-gray-200 rounded-lg cursor-not-allowed"
+                >
+                  Select a Model First
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

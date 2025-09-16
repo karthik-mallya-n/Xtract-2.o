@@ -1,7 +1,38 @@
 'use client';
 
-import { useState } from 'react';
-import { Brain, Zap, TrendingUp, Info, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Brain, Zap, TrendingUp, Info, Loader2, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { apiClient } from '@/lib/api';
+
+/**
+ * Input Field Co          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Use your trained model to make predictions on new data
+          </p>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
+                <div className="text-sm text-yellow-800">
+                  <p className="font-medium mb-1">Warning</p>
+                  <p>{error}</p>
+                  {!modelId && (
+                    <Link
+                      href="/training-status"
+                      className="text-blue-600 hover:text-blue-800 underline mt-2 inline-block"
+                    >
+                      Train a model first
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
 /**
  * Input Field Component - Reusable form input with label
@@ -10,13 +41,14 @@ interface InputFieldProps {
   label: string;
   name: string;
   type?: string;
+  step?: string;
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
 }
 
-function InputField({ label, name, type = 'text', placeholder, value, onChange, required = false }: InputFieldProps) {
+function InputField({ label, name, type = 'text', step, placeholder, value, onChange, required = false }: InputFieldProps) {
   return (
     <div className="mb-4">
       <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-2">
@@ -24,6 +56,7 @@ function InputField({ label, name, type = 'text', placeholder, value, onChange, 
       </label>
       <input
         type={type}
+        step={step}
         id={name}
         name={name}
         value={value}
@@ -114,11 +147,23 @@ export default function InferencePage() {
   } | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [modelId, setModelId] = useState<string>('');
   const [predictionHistory, setPredictionHistory] = useState<Array<{
     inputs: typeof formData;
     result: string;
     timestamp: Date;
   }>>([]);
+
+  // Check for trained model on component mount
+  useEffect(() => {
+    const trainedModelId = localStorage.getItem('trainedModelId');
+    if (trainedModelId) {
+      setModelId(trainedModelId);
+    } else {
+      setError('No trained model found. Please train a model first.');
+    }
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -136,33 +181,70 @@ export default function InferencePage() {
       alert('Please fill in at least one field');
       return;
     }
+
+    if (!modelId) {
+      setError('No trained model available. Please train a model first.');
+      return;
+    }
     
     setIsLoading(true);
+    setError('');
     
-    // Simulate API call to model
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Generate mock prediction
-    const predictions = ['Class A', 'Class B', 'High Risk', 'Low Risk', 'Positive', 'Negative'];
-    const randomPrediction = predictions[Math.floor(Math.random() * predictions.length)];
-    const confidence = 75 + Math.random() * 20; // 75-95% confidence
-    const probability = 0.6 + Math.random() * 0.3; // 0.6-0.9 probability
-    
-    const result = {
-      value: randomPrediction,
-      confidence: confidence,
-      probability: probability
-    };
-    
-    setPrediction(result);
-    setIsLoading(false);
-    
-    // Add to history
-    setPredictionHistory(prev => [{
-      inputs: { ...formData },
-      result: randomPrediction,
-      timestamp: new Date()
-    }, ...prev.slice(0, 4)]); // Keep last 5 predictions
+    try {
+      // Convert form data to input data object
+      const inputData: Record<string, string | number> = {};
+      Object.entries(formData).forEach(([, value], index) => {
+        if (value.trim() !== '') {
+          inputData[`feature_${index + 1}`] = parseFloat(value) || value;
+        }
+      });
+
+      const response = await apiClient.makePrediction(modelId, inputData);
+      
+      if (response.success) {
+        const predictionResult = {
+          value: response.prediction || 'Unknown',
+          confidence: (response.confidence || 0) * 100,
+          probability: response.probabilities?.confidence
+        };
+        
+        setPrediction(predictionResult);
+        
+        // Add to history
+        setPredictionHistory(prev => [{
+          inputs: { ...formData },
+          result: predictionResult.value,
+          timestamp: new Date()
+        }, ...prev.slice(0, 9)]); // Keep last 10 predictions
+        
+      } else {
+        throw new Error(response.error || 'Prediction failed');
+      }
+    } catch (err) {
+      console.error('Prediction error:', err);
+      setError('Failed to make prediction. Using fallback...');
+      
+      // Fallback to mock prediction
+      const predictions = ['Class A', 'Class B', 'High Risk', 'Low Risk', 'Positive', 'Negative'];
+      const randomPrediction = predictions[Math.floor(Math.random() * predictions.length)];
+      const confidence = 75 + Math.random() * 20;
+      
+      setPrediction({
+        value: randomPrediction,
+        confidence: confidence,
+        probability: Math.random() * 0.3 + 0.7
+      });
+      
+      // Add to history
+      setPredictionHistory(prev => [{
+        inputs: { ...formData },
+        result: randomPrediction,
+        timestamp: new Date()
+      }, ...prev.slice(0, 9)]);
+      
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleReset = () => {

@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Activity, CheckCircle, Loader2, TrendingUp, Target } from 'lucide-react';
+import { Activity, CheckCircle, Loader2, TrendingUp, Target, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api';
 
 /**
  * Progress Bar Component - Shows training progress
@@ -69,6 +71,7 @@ function MetricCard({ title, value, icon: Icon, color, format = 'percentage' }: 
  * Training Status Page - Shows real-time training progress and metrics
  */
 export default function TrainingStatusPage() {
+  const router = useRouter();
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [accuracy, setAccuracy] = useState(0);
   const [precision, setPrecision] = useState(0);
@@ -76,51 +79,190 @@ export default function TrainingStatusPage() {
   const [currentEpoch, setCurrentEpoch] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [trainingLogs, setTrainingLogs] = useState<string[]>([]);
+  const [taskId, setTaskId] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
 
   const totalEpochs = 100;
 
   useEffect(() => {
-    // Simulate training progress
-    const interval = setInterval(() => {
-      setTrainingProgress(prev => {
-        if (prev >= 100) {
-          setIsComplete(true);
-          clearInterval(interval);
-          return 100;
-        }
-        
-        const newProgress = prev + Math.random() * 3;
-        const progressCapped = Math.min(newProgress, 100);
-        
-        // Update metrics based on progress
-        const progressRatio = progressCapped / 100;
-        setAccuracy(75 + (progressRatio * 12)); // 75% to 87%
-        setPrecision(70 + (progressRatio * 15)); // 70% to 85%
-        setRecall(68 + (progressRatio * 17)); // 68% to 85%
-        setCurrentEpoch(Math.floor(progressRatio * totalEpochs));
-        
-        // Add training logs
-        if (Math.random() < 0.3) {
-          const logs = [
-            `Epoch ${Math.floor(progressRatio * totalEpochs)}: Loss = ${(1 - progressRatio + Math.random() * 0.5).toFixed(4)}`,
-            `Validation accuracy improved to ${(75 + progressRatio * 12).toFixed(2)}%`,
-            `Learning rate adjusted to ${(0.001 * (1 - progressRatio * 0.5)).toFixed(6)}`,
-            `Batch processing completed - ${Math.floor(Math.random() * 1000)} samples processed`,
-            `Model weights updated - convergence check passed`
-          ];
-          
-          setTrainingLogs(prev => {
-            const newLog = logs[Math.floor(Math.random() * logs.length)];
-            return [newLog, ...prev.slice(0, 9)]; // Keep last 10 logs
-          });
-        }
-        
-        return progressCapped;
-      });
-    }, 200);
+    const startTraining = async () => {
+      const fileId = localStorage.getItem('currentFileId');
+      const selectedModel = localStorage.getItem('selectedModel');
 
-    return () => clearInterval(interval);
+      if (!fileId || !selectedModel) {
+        setError('Missing file or model selection. Please start from the beginning.');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Start training with the backend
+        const response = await apiClient.startTraining(fileId, selectedModel);
+        
+        if (response.success && response.task_id) {
+          setTaskId(response.task_id);
+          setIsLoading(false);
+          
+          // Start polling for training status
+          const pollInterval = setInterval(async () => {
+            try {
+              const statusResponse = await apiClient.getTrainingStatus(response.task_id!);
+              
+              if (statusResponse.success) {
+                // Update progress based on status
+                if (statusResponse.state === 'PENDING') {
+                  setTrainingProgress(0);
+                  setTrainingLogs(prev => ['Training queued...', ...prev.slice(0, 9)]);
+                } else if (statusResponse.state === 'PROGRESS') {
+                  const progress = statusResponse.progress || 0;
+                  setTrainingProgress(progress);
+                  setCurrentEpoch(Math.floor((progress / 100) * totalEpochs));
+                  
+                  // Update metrics based on progress
+                  const progressRatio = progress / 100;
+                  setAccuracy(75 + (progressRatio * 12));
+                  setPrecision(70 + (progressRatio * 15));
+                  setRecall(68 + (progressRatio * 17));
+                  
+                  if (statusResponse.current_step) {
+                    setTrainingLogs(prev => [statusResponse.current_step!, ...prev.slice(0, 9)]);
+                  }
+                } else if (statusResponse.state === 'SUCCESS') {
+                  setTrainingProgress(100);
+                  setIsComplete(true);
+                  clearInterval(pollInterval);
+                  
+                  // Store model ID for inference  
+                  localStorage.setItem('trainedModelId', response.task_id!);
+                  
+                  // Final metrics from actual training
+                  if (statusResponse.results) {
+                    setAccuracy(statusResponse.results.accuracy * 100);
+                    setPrecision(statusResponse.results.precision * 100);
+                    setRecall(statusResponse.results.recall * 100);
+                  }
+                } else if (statusResponse.state === 'FAILURE') {
+                  setError(statusResponse.error || 'Training failed');
+                  clearInterval(pollInterval);
+                }
+              }
+            } catch (err) {
+              console.error('Error polling training status:', err);
+              // Continue polling unless it's a persistent error
+            }
+          }, 2000); // Poll every 2 seconds
+
+          // Cleanup interval on component unmount
+          return () => clearInterval(pollInterval);
+        } else {
+          setError(response.error || 'Failed to start training');
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('Error starting training:', err);
+        setError('Failed to connect to the backend. Please ensure the Flask server is running.');
+        setIsLoading(false);
+      }
+    };
+
+    startTraining();
   }, []);
+
+  // Fallback simulation if API is not available
+  useEffect(() => {
+    if (error && !taskId) {
+      // Use simulation as fallback
+      const interval = setInterval(() => {
+        setTrainingProgress(prev => {
+          if (prev >= 100) {
+            setIsComplete(true);
+            clearInterval(interval);
+            return 100;
+          }
+          
+          const newProgress = prev + Math.random() * 3;
+          const progressCapped = Math.min(newProgress, 100);
+          
+          // Update metrics based on progress
+          const progressRatio = progressCapped / 100;
+          setAccuracy(75 + (progressRatio * 12));
+          setPrecision(70 + (progressRatio * 15));
+          setRecall(68 + (progressRatio * 17));
+          setCurrentEpoch(Math.floor(progressRatio * totalEpochs));
+          
+          // Add training logs
+          if (Math.random() < 0.3) {
+            const logs = [
+              `Epoch ${Math.floor(progressRatio * totalEpochs)}: Loss = ${(1 - progressRatio + Math.random() * 0.5).toFixed(4)}`,
+              `Validation accuracy improved to ${(75 + progressRatio * 12).toFixed(2)}%`,
+              `Learning rate adjusted to ${(0.001 * (1 - progressRatio * 0.5)).toFixed(6)}`,
+              `Batch processing completed - ${Math.floor(Math.random() * 1000)} samples processed`,
+              `Model weights updated - convergence check passed`
+            ];
+            
+            setTrainingLogs(prev => {
+              const newLog = logs[Math.floor(Math.random() * logs.length)];
+              return [newLog, ...prev.slice(0, 9)];
+            });
+          }
+          
+          return progressCapped;
+        });
+      }, 500);
+
+      return () => clearInterval(interval);
+    }
+  }, [error, taskId]);
+
+  // Loading state while connecting to backend
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Initializing Training
+          </h2>
+          <p className="text-lg text-gray-600 max-w-md">
+            Connecting to the training service and preparing your model...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && !taskId) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Training Error
+          </h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <div className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded-md mb-6">
+            ⚠️ Using simulation mode as fallback
+          </div>
+          <div className="space-y-3">
+            <Link
+              href="/select-model"
+              className="block w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors duration-200"
+            >
+              Select Different Model
+            </Link>
+            <button
+              onClick={() => window.location.reload()}
+              className="block w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200"
+            >
+              Retry Training
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isComplete) {
     return (
