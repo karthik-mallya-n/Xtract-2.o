@@ -15,7 +15,8 @@ import joblib
 
 # Import our custom modules
 from core_ml import ml_core
-from tasks import celery_app, train_model_task
+# Task system disabled due to import issues
+# from tasks import celery_app, train_model_task
 
 # Load environment variables
 load_dotenv()
@@ -157,73 +158,229 @@ def recommend_model():
     
     Returns:
     - JSON response with model recommendations
+
+    Resilience / Fallback Strategy:
+    - If dataset analysis fails, returns minimal dataset_info and continues
+    - If LLM call fails (missing key, network, parse error), returns backend static fallback models
+    - Always returns HTTP 200 with success True unless request validation fails (400/404)
+    - Warnings array included when fallbacks are used so the frontend can inform the user
     """
     try:
         file_id = request.args.get('file_id')
-        
+
         if not file_id:
             return jsonify({
                 'success': False,
                 'error': 'file_id parameter is required'
             }), 400
-        
+
         # Check if file exists
         if file_id not in uploaded_files:
             return jsonify({
                 'success': False,
                 'error': 'File not found. Please upload a file first.'
             }), 404
-        
+
         file_info = uploaded_files[file_id]
         file_path = file_info['file_path']
         user_answers = file_info['user_answers']
-        
-        # Analyze the dataset
-        dataset_analysis = ml_core.analyze_dataset(file_path)
-        
-        # Make LLM request for recommendations
+
+        # Analyze the dataset with guard
+        try:
+            dataset_analysis = ml_core.analyze_dataset(file_path)
+        except Exception as analysis_err:
+            # Provide minimal dataset info fallback
+            dataset_analysis = {
+                'total_rows': 0,
+                'total_columns': 0,
+                'numeric_columns': [],
+                'categorical_columns': []
+            }
+            analysis_warning = f"Dataset analysis failed: {analysis_err}"
+        else:
+            analysis_warning = None
+
+        # Attempt LLM recommendations
         llm_response = ml_core.make_llm_request(user_answers, dataset_analysis)
-        
-        if not llm_response['success']:
-            return jsonify({
-                'success': False,
-                'error': llm_response['error']
-            }), 500
-        
-        # Prepare response
+
+        warnings = []
+        if analysis_warning:
+            warnings.append(analysis_warning)
+
+        # Define backend fallback recommendations (must align with frontend expectations in select-model page)
+        backend_fallback = {
+            'recommended_models': [
+                {
+                    'name': 'Random Forest',
+                    'description': 'Robust ensemble method suitable for mixed feature types and handles non-linear relationships well.',
+                    'accuracy_estimate': 85,
+                    'reasoning': 'Default choice when data characteristics are unknown or moderate sized.'
+                }
+            ],
+            'alternative_models': [
+                {
+                    'name': 'Support Vector Machine',
+                    'description': 'Effective in high dimensional spaces; good baseline for classification.',
+                    'accuracy_estimate': 82
+                },
+                {
+                    'name': 'Logistic Regression',
+                    'description': 'Interpretable linear baseline useful for quick iteration.',
+                    'accuracy_estimate': 78
+                }
+            ]
+        }
+
+        if not llm_response.get('success', False):
+            error_msg = llm_response.get('error', 'LLM recommendation failed')
+            warnings.append(f"AI recommendation failed: {error_msg}")
+            print(f"⚠️ Using fallback recommendations due to AI failure: {error_msg}")
+            recommendations = backend_fallback
+            raw_llm_response = ''
+            scenario_info = None
+            semantic_analysis = None
+        else:
+            # Handle the new comprehensive JSON structure
+            recs = llm_response.get('recommendations') or {}
+            
+            # Extract scenario and semantic analysis
+            scenario_info = recs.get('scenario_detected', {})
+            semantic_analysis = recs.get('semantic_analysis', {})
+            
+            # Process ranked models
+            ranked_models = recs.get('recommended_models', [])
+            primary_recommendation = recs.get('primary_recommendation', {})
+            
+            if ranked_models:
+                # Convert ranked models to expected format
+                recommended_models = []
+                alternative_models = []
+                
+                for i, model in enumerate(ranked_models):
+                    # Create a unique ID based on rank and name to avoid duplicates
+                    model_name = model.get('name', f'Model {i+1}')
+                    unique_id = f"model_{i+1}_{model_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace(',', '').replace('-', '_')}"
+                    
+                    model_data = {
+                        'id': unique_id,  # Add unique ID for frontend
+                        'name': model_name,
+                        'description': model.get('reasoning', model.get('advantages', '')),
+                        'accuracy_estimate': model.get('expected_accuracy', 'Unknown'),
+                        'reasoning': model.get('reasoning', ''),
+                        'advantages': model.get('advantages', ''),
+                        'rank': model.get('rank', i+1)
+                    }
+                    
+                    # Add ALL models to recommended_models (user wants to see all models)
+                    recommended_models.append(model_data)
+                
+                # Keep alternative_models empty to avoid duplicates
+                alternative_models = []
+                
+                recommendations = {
+                    'recommended_models': recommended_models,
+                    'alternative_models': alternative_models,
+                    'scenario_detected': scenario_info,
+                    'semantic_analysis': semantic_analysis,
+                    'primary_recommendation': primary_recommendation
+                }
+            else:
+                # Fallback to old format if new format not available
+                if 'recommended_model' in recs:
+                    primary = recs.get('recommended_model')
+                    alt = recs.get('alternative_models', [])
+                    
+                    primary_name = primary.get('name', 'Primary Model') if isinstance(primary, dict) else 'Primary Model'
+                    normalized_primary = {
+                        'id': f"primary_{primary_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace(',', '').replace('-', '_')}",
+                        'name': primary_name,
+                        'description': primary.get('description', '') if isinstance(primary, dict) else str(primary),
+                        'accuracy_estimate': 'Unknown',
+                        'reasoning': primary.get('reasoning', '') if isinstance(primary, dict) else '',
+                        'rank': 1
+                    }
+                    
+                    normalized_alts = []
+                    for i, a in enumerate(alt):
+                        alt_name = a.get('name', 'Alt Model')
+                        normalized_alts.append({
+                            'id': f"alt_{i+1}_{alt_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace(',', '').replace('-', '_')}",
+                            'name': alt_name,
+                            'description': a.get('description', ''),
+                            'accuracy_estimate': 'Unknown',
+                            'rank': i + 2
+                        })
+                    
+                    recommendations = {
+                        'recommended_models': [normalized_primary],
+                        'alternative_models': normalized_alts or backend_fallback['alternative_models'],
+                        'scenario_detected': scenario_info,
+                        'semantic_analysis': semantic_analysis
+                    }
+                else:
+                    # Update backend fallback to also have unique IDs
+                    fallback_primary = backend_fallback['recommended_models'][0]
+                    fallback_primary['id'] = 'fallback_random_forest'
+                    fallback_primary['rank'] = 1
+                    
+                    for i, alt_model in enumerate(backend_fallback['alternative_models']):
+                        alt_name = alt_model.get('name', f'Alt Model {i+1}')
+                        alt_model['id'] = f"fallback_{i+1}_{alt_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace(',', '').replace('-', '_')}"
+                        alt_model['rank'] = i + 2
+                    
+                    recommendations = backend_fallback
+                    
+            raw_llm_response = llm_response.get('raw_response', '')
+
         response_data = {
             'success': True,
             'file_id': file_id,
             'dataset_info': {
-                'total_rows': dataset_analysis['total_rows'],
-                'total_columns': dataset_analysis['total_columns'],
-                'numeric_columns': len(dataset_analysis['numeric_columns']),
-                'categorical_columns': len(dataset_analysis['categorical_columns'])
+                'total_rows': dataset_analysis.get('total_rows', 0),
+                'total_columns': dataset_analysis.get('total_columns', 0),
+                'numeric_columns': len(dataset_analysis.get('numeric_columns', [])),
+                'categorical_columns': len(dataset_analysis.get('categorical_columns', []))
             },
             'user_answers': user_answers,
-            'recommendations': llm_response.get('recommendations', {}),
-            'raw_llm_response': llm_response.get('raw_response', '')
+            'recommendations': recommendations,
+            'raw_llm_response': raw_llm_response,
+            'warnings': warnings if warnings else None
         }
-        
-        return jsonify(response_data)
-    
+
+        # Always return 200 with success true even if fallbacks used; frontend can display warnings
+        return jsonify(response_data), 200
+
     except Exception as e:
+        # Final safety net: still return fallback instead of 500
+        fallback = {
+            'recommended_models': [
+                {
+                    'name': 'Random Forest',
+                    'description': 'Standard fallback model.',
+                    'accuracy_estimate': 80,
+                    'reasoning': 'Safe default'
+                }
+            ],
+            'alternative_models': []
+        }
         return jsonify({
-            'success': False,
-            'error': f'Failed to get recommendations: {str(e)}'
-        }), 500
+            'success': True,
+            'file_id': request.args.get('file_id'),
+            'recommendations': fallback,
+            'warnings': [f'Critical error in recommendation pipeline: {str(e)}']
+        }), 200
 
 @app.route('/api/train', methods=['POST'])
 def start_training():
     """
-    Start model training as a background task
+    Start model training using advanced training system
     
     Expected JSON body:
     - file_id: ID of uploaded file
     - model_name: Name of selected model
     
     Returns:
-    - JSON response with task_id for tracking training progress
+    - JSON response with training results
     """
     try:
         data = request.get_json()
@@ -252,95 +409,330 @@ def start_training():
         
         file_info = uploaded_files[file_id]
         file_path = file_info['file_path']
-        user_answers = file_info['user_answers']
+        user_answers = file_info.get('user_answers', {})
         
-        # Start training task
-        task = train_model_task.delay(file_id, file_path, model_name, user_answers)
+        # Load the dataset
+        import pandas as pd
+        df = pd.read_csv(file_path)
         
-        # Store task info
-        file_info['training_task_id'] = task.id
-        file_info['training_started'] = datetime.now().isoformat()
+        # Use advanced training system
+        print(f"Starting advanced training for model: {model_name}")
+        print(f"Dataset shape: {df.shape}")
+        
+        result = ml_core.train_advanced_model(
+            df=df,
+            model_name=model_name,
+            target_column=None,  # Will be auto-detected
+            file_id=file_id
+        )
+        
+        # Store training info
+        file_info['training_completed'] = datetime.now().isoformat()
         file_info['selected_model'] = model_name
+        file_info['training_result'] = result
+        
+        print(f"Training completed successfully: {result}")
         
         return jsonify({
             'success': True,
-            'task_id': task.id,
             'file_id': file_id,
             'model_name': model_name,
-            'message': 'Training started successfully'
+            'result': result,
+            'message': 'Training completed successfully'
         })
     
     except Exception as e:
+        print(f"Training error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': f'Failed to start training: {str(e)}'
+            'error': f'Failed to complete training: {str(e)}'
         }), 500
 
-@app.route('/api/training-status/<task_id>', methods=['GET'])
-def get_training_status(task_id):
+@app.route('/api/training-status/<file_id>', methods=['GET'])
+def get_training_status(file_id):
     """
-    Get the status of a training task
+    Get the status of training for a file
     
     Parameters:
-    - task_id: Celery task ID
+    - file_id: File ID for the training
     
     Returns:
-    - JSON response with training progress and metrics
+    - JSON response with training status and results
     """
     try:
-        # Get task result
-        task = celery_app.AsyncResult(task_id)
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found'
+            }), 404
         
-        response_data = {
-            'task_id': task_id,
-            'state': task.state
-        }
+        file_info = uploaded_files[file_id]
         
-        if task.state == 'PENDING':
-            response_data.update({
-                'progress': 0,
-                'status': 'Task is waiting to start...',
-                'is_complete': False
-            })
-        
-        elif task.state == 'PROGRESS':
-            response_data.update({
-                'progress': task.info.get('progress', 0),
-                'status': task.info.get('status', 'Training in progress...'),
-                'current_step': task.info.get('current_step', ''),
-                'accuracy': task.info.get('accuracy', 0),
-                'precision': task.info.get('precision', 0),
-                'recall': task.info.get('recall', 0),
-                'f1_score': task.info.get('f1_score', 0),
-                'is_complete': False
-            })
-        
-        elif task.state == 'SUCCESS':
-            result = task.result
-            response_data.update({
+        # Check if training was completed
+        if 'training_result' in file_info and 'training_completed' in file_info:
+            return jsonify({
+                'success': True,
+                'file_id': file_id,
+                'state': 'SUCCESS',
                 'progress': 100,
                 'status': 'Training completed successfully!',
                 'is_complete': True,
-                'results': result
+                'training_completed': file_info['training_completed'],
+                'selected_model': file_info.get('selected_model', ''),
+                'results': file_info['training_result']
             })
-        
-        elif task.state == 'FAILURE':
-            response_data.update({
+        else:
+            return jsonify({
+                'success': True,
+                'file_id': file_id,
+                'state': 'PENDING',
                 'progress': 0,
-                'status': 'Training failed',
-                'error': str(task.info),
-                'is_complete': True
+                'status': 'No training completed for this file',
+                'is_complete': False
             })
-        
-        return jsonify({
-            'success': True,
-            **response_data
-        })
     
     except Exception as e:
         return jsonify({
             'success': False,
             'error': f'Failed to get training status: {str(e)}'
+        }), 500
+
+@app.route('/api/train-recommended', methods=['POST'])
+def train_recommended_model():
+    """
+    Train the AI-recommended model directly (synchronous)
+    
+    Expected JSON body:
+    - file_id: ID of uploaded file
+    
+    Returns:
+    - JSON response with training results
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON body is required'
+            }), 400
+        
+        file_id = data.get('file_id')
+        
+        if not file_id:
+            return jsonify({
+                'success': False,
+                'error': 'file_id is required'
+            }), 400
+        
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found. Please upload a file first.'
+            }), 404
+        
+        file_info = uploaded_files[file_id]
+        file_path = file_info['file_path']
+        user_answers = file_info['user_answers']
+        
+        print(f"\n🚀 TRAINING RECOMMENDED MODEL FOR FILE: {file_id}")
+        print(f"📂 File path: {file_path}")
+        print(f"👤 User answers: {user_answers}")
+        
+        # First, get AI recommendations if not already available
+        if 'recommendations' not in file_info:
+            print("📋 Getting AI recommendations first...")
+            dataset_analysis = ml_core.analyze_dataset(file_path)
+            llm_response = ml_core.make_llm_request(user_answers, dataset_analysis)
+            
+            if not llm_response.get('success', False):
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to get AI recommendations'
+                }), 500
+            
+            file_info['recommendations'] = llm_response.get('recommendations', {})
+        
+        recommendations = file_info['recommendations']
+        
+        # Train the recommended model
+        training_results = ml_core.train_recommended_model(file_path, recommendations, user_answers)
+        
+        if training_results.get('success'):
+            # Store training results
+            file_info['training_results'] = training_results
+            file_info['model_trained'] = True
+            file_info['training_completed'] = datetime.now().isoformat()
+            
+            return jsonify({
+                'success': True,
+                'training_results': training_results,
+                'message': 'Model trained successfully!'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': training_results.get('error', 'Training failed')
+            }), 500
+    
+    except Exception as e:
+        print(f"❌ Error in train_recommended_model: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to train model: {str(e)}'
+        }), 500
+
+@app.route('/api/train-advanced', methods=['POST'])
+def train_advanced_model():
+    """
+    Train a model using the advanced trainer with 90%+ accuracy optimization
+    
+    Request JSON:
+    {
+        "file_id": "uuid",
+        "model_name": "Logistic Regression",
+        "target_column": "column_name"
+    }
+    
+    Returns:
+    - JSON response with training results and model folder information
+    """
+    try:
+        print(f"\n🚀 ADVANCED MODEL TRAINING REQUEST")
+        print("="*80)
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
+        
+        file_id = data.get('file_id')
+        model_name = data.get('model_name')
+        target_column = data.get('target_column')
+        
+        # Validate required parameters
+        if not file_id:
+            return jsonify({
+                'success': False,
+                'error': 'file_id is required'
+            }), 400
+        
+        if not model_name:
+            return jsonify({
+                'success': False,
+                'error': 'model_name is required'
+            }), 400
+        
+        if not target_column:
+            return jsonify({
+                'success': False,
+                'error': 'target_column is required'
+            }), 400
+        
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found. Please upload a file first.'
+            }), 404
+        
+        file_info = uploaded_files[file_id]
+        file_path = file_info['file_path']
+        
+        print(f"📄 Training file: {file_info['original_filename']}")
+        print(f"🤖 Model: {model_name}")
+        print(f"🎯 Target: {target_column}")
+        
+        # Validate model availability
+        available_models = ml_core.get_available_models()
+        if model_name not in available_models:
+            return jsonify({
+                'success': False,
+                'error': f'Model "{model_name}" not available. Available models: {available_models}'
+            }), 400
+        
+        # Train the model using advanced trainer
+        training_result = ml_core.train_advanced_model(
+            model_name=model_name,
+            file_path=file_path,
+            target_column=target_column
+        )
+        
+        if training_result['success']:
+            print(f"✅ Advanced training completed successfully!")
+            
+            response_data = {
+                'success': True,
+                'message': 'Advanced model training completed successfully',
+                'model_name': model_name,
+                'model_folder': training_result['model_folder'],
+                'performance': training_result['performance'],
+                'main_score': training_result['main_score'],
+                'score_name': training_result['score_name'],
+                'problem_type': training_result['problem_type'],
+                'threshold_met': training_result['threshold_met'],
+                'file_info': {
+                    'file_id': file_id,
+                    'filename': file_info['original_filename'],
+                    'target_column': target_column
+                }
+            }
+            
+            if training_result['threshold_met']:
+                response_data['message'] += f" - Achieved 90%+ {training_result['score_name']}!"
+            else:
+                response_data['message'] += f" - {training_result['score_name']}: {training_result['main_score']*100:.1f}%"
+            
+            return jsonify(response_data)
+        
+        else:
+            print(f"❌ Advanced training failed: {training_result.get('error', 'Unknown error')}")
+            return jsonify({
+                'success': False,
+                'error': training_result.get('error', 'Training failed'),
+                'model_name': model_name
+            }), 500
+    
+    except Exception as e:
+        print(f"❌ Error in train_advanced_model: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to train advanced model: {str(e)}'
+        }), 500
+
+@app.route('/api/available-models', methods=['GET'])
+def get_available_models():
+    """
+    Get list of available models for training
+    
+    Query parameters:
+    - problem_type: 'classification' or 'regression' (optional)
+    
+    Returns:
+    - JSON response with available model names
+    """
+    try:
+        problem_type = request.args.get('problem_type')
+        
+        available_models = ml_core.get_available_models(problem_type)
+        
+        return jsonify({
+            'success': True,
+            'models': available_models,
+            'problem_type': problem_type,
+            'total_count': len(available_models)
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Failed to get available models: {str(e)}'
         }), 500
 
 @app.route('/api/predict', methods=['POST'])
