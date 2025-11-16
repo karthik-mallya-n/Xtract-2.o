@@ -67,6 +67,7 @@ function ModelCard({ name, description, accuracy, isRecommended, onSelect, isSel
 export default function SelectModelPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [isTraining, setIsTraining] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [recommendations, setRecommendations] = useState<ModelRecommendation | null>(null);
   const [error, setError] = useState<string>('');
@@ -108,15 +109,50 @@ export default function SelectModelPage() {
     setSelectedModel(modelId);
   };
 
-  const handleStartTraining = () => {
+  const handleStartTraining = async () => {
     if (!selectedModel || !fileId) {
       setError('Please select a model first');
       return;
     }
 
-    // Store selected model and navigate to training page
-    localStorage.setItem('selectedModel', selectedModel);
-    router.push('/training-status');
+    // Find the selected model details
+    const allModels = [
+      ...(recommendations?.recommendations?.recommended_models || []),
+      ...(recommendations?.recommendations?.alternative_models || [])
+    ];
+    const selectedModelData = allModels.find(model => 
+      model.name === selectedModel || 
+      model.name.toLowerCase().replace(/\s+/g, '-') === selectedModel
+    );
+    const modelName = selectedModelData?.name || selectedModel;
+
+    setIsTraining(true);
+    setError('');
+
+    try {
+      console.log('Starting training for:', modelName);
+      
+      // Call training API
+      const response = await apiClient.startTraining(fileId, modelName);
+      
+      if (response.success && response.result) {
+        // Store complete training results in localStorage including feature_info
+        const completeResults = {
+          ...response.result,
+          feature_info: response.feature_info // Include feature information for dynamic forms
+        };
+        localStorage.setItem('trainingResults', JSON.stringify(completeResults));
+        
+        // Navigate to results page
+        router.push('/results');
+      } else {
+        throw new Error(response.error || 'Training failed');
+      }
+    } catch (err) {
+      console.error('Training error:', err);
+      setError('Training failed. Please try again.');
+      setIsTraining(false);
+    }
   };
 
   // Mock data for fallback when LLM is not available
@@ -337,14 +373,24 @@ export default function SelectModelPage() {
           
           <button
             onClick={handleStartTraining}
-            disabled={!selectedModel}
+            disabled={!selectedModel || isTraining}
             className={`px-6 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
-              selectedModel
+              selectedModel && !isTraining
                 ? 'text-white bg-blue-600 hover:bg-blue-700'
                 : 'text-gray-400 bg-gray-200 cursor-not-allowed'
             }`}
           >
-            Start Training
+            {isTraining ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Training...
+              </span>
+            ) : (
+              'Start Training'
+            )}
           </button>
         </div>
       </div>

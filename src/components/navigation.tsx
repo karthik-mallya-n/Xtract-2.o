@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Database, Brain, Activity, Target } from 'lucide-react';
+import { Database, Brain, Target, BarChart3, Zap } from 'lucide-react';
 
 /**
  * Navigation component that provides links to all main pages
@@ -15,8 +15,8 @@ export default function Navigation() {
     { href: '/', label: 'Home', icon: Brain },
     { href: '/upload', label: 'Upload Data', icon: Database },
     { href: '/select-model', label: 'Models', icon: Target },
-    { href: '/training-status', label: 'Training', icon: Activity },
-    { href: '/inference', label: 'Inference', icon: Brain },
+    { href: '/results', label: 'Results', icon: BarChart3 },
+    { href: '/inference', label: 'Predictions', icon: Zap },
   ];
 
   return (

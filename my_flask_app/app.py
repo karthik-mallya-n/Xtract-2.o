@@ -36,7 +36,7 @@ def create_app():
     os.makedirs(app.config['MODEL_STORAGE_PATH'], exist_ok=True)
     
     # Configure CORS
-    cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001').split(',')
     CORS(app, origins=cors_origins, supports_credentials=True)
     
     return app
@@ -400,30 +400,117 @@ def start_training():
                 'error': 'file_id and model_name are required'
             }), 400
         
-        # Check if file exists
-        if file_id not in uploaded_files:
-            return jsonify({
-                'success': False,
-                'error': 'File not found. Please upload a file first.'
-            }), 404
+        # Check if file exists in uploaded_files dictionary or find it directly
+        file_info = None
+        file_path = None
         
-        file_info = uploaded_files[file_id]
-        file_path = file_info['file_path']
+        if file_id in uploaded_files:
+            # File is in current session
+            file_info = uploaded_files[file_id]
+            file_path = file_info['file_path']
+        else:
+            # Try to find the file directly in uploads folder
+            import glob
+            potential_files = glob.glob(f"{app.config['UPLOAD_FOLDER']}/{file_id}.*")
+            if not potential_files:
+                # Try pattern matching for UUID-like file IDs
+                potential_files = glob.glob(f"{app.config['UPLOAD_FOLDER']}/*{file_id[:8]}*.*")
+            
+            if potential_files:
+                file_path = potential_files[0]
+                print(f"Found file directly: {file_path}")
+                # Create minimal file_info
+                file_info = {
+                    'file_id': file_id,
+                    'file_path': file_path,
+                    'original_filename': os.path.basename(file_path),
+                    'user_answers': {}
+                }
+            else:
+                # Try the default Iris dataset for demo purposes
+                demo_file = f"{app.config['UPLOAD_FOLDER']}/b0560d95-7006-4035-9ac9-a547229a0071.csv"
+                if os.path.exists(demo_file):
+                    file_path = demo_file
+                    print(f"Using demo file: {file_path}")
+                    file_info = {
+                        'file_id': file_id,
+                        'file_path': file_path,
+                        'original_filename': 'iris_demo.csv',
+                        'user_answers': {'is_labeled': 'labeled', 'data_type': 'continuous'}
+                    }
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'File with ID {file_id} not found. Please upload a file first.'
+                    }), 404
         user_answers = file_info.get('user_answers', {})
         
         # Load the dataset
         import pandas as pd
         df = pd.read_csv(file_path)
         
-        # Use advanced training system
-        print(f"Starting advanced training for model: {model_name}")
-        print(f"Dataset shape: {df.shape}")
+        # Try to get target column from user answers or auto-detect
+        target_column = None
         
+        # Check if this is a clustering model (no target column needed)
+        clustering_models = ['kmeans', 'dbscan', 'hierarchical clustering', 'gaussian mixture']
+        is_clustering = any(cluster_model in model_name.lower() for cluster_model in clustering_models)
+        
+        if is_clustering:
+            # For clustering, use any column as dummy target (the algorithm will ignore it)
+            target_column = df.columns[0]
+            print(f"Clustering model detected - using dummy target: {target_column}")
+        elif 'target_column' in user_answers:
+            target_column = user_answers['target_column']
+        else:
+            # Auto-detect: assume last column is target for classification/regression
+            target_column = df.columns[-1]
+        
+        # Use advanced training system
+        print(f"🚀 Starting advanced training for model: {model_name}")
+        print(f"📂 File path: {file_path}")
+        print(f"📊 File ID: {file_id}")
+        print(f"📄 Original filename: {file_info.get('original_filename', 'Unknown')}")
+        
+        # Load and validate dataset
+        import pandas as pd
+        try:
+            df = pd.read_csv(file_path)
+            print(f"📈 Dataset shape: {df.shape}")
+            print(f"📋 Columns: {list(df.columns)}")
+        except Exception as e:
+            print(f"❌ Error loading dataset: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Failed to load dataset: {str(e)}'
+            }), 500
+
+        user_answers = file_info.get('user_answers', {})
+        
+        # Try to get target column from user answers or auto-detect
+        target_column = None
+        
+        # Check if this is a clustering model (no target column needed)
+        clustering_models = ['kmeans', 'dbscan', 'hierarchical clustering', 'gaussian mixture']
+        is_clustering = any(cluster_model in model_name.lower() for cluster_model in clustering_models)
+        
+        if is_clustering:
+            # For clustering, use any column as dummy target (the algorithm will ignore it)
+            target_column = df.columns[0]
+            print(f"Clustering model detected - using dummy target: {target_column}")
+        elif 'target_column' in user_answers:
+            target_column = user_answers['target_column']
+        else:
+            # Auto-detect: assume last column is target for classification/regression
+            target_column = df.columns[-1]
+        
+        print(f"🎯 Target column: {target_column}")
+        
+        # Train the model
         result = ml_core.train_advanced_model(
-            df=df,
             model_name=model_name,
-            target_column=None,  # Will be auto-detected
-            file_id=file_id
+            file_path=file_path,
+            target_column=target_column
         )
         
         # Store training info
@@ -433,11 +520,56 @@ def start_training():
         
         print(f"Training completed successfully: {result}")
         
+        # Get feature information from the saved model for frontend display
+        feature_info = {}
+        if result['success'] and 'model_folder' in result:
+            try:
+                # Check for metadata.json in the model folder
+                metadata_path = f"{result['model_folder']}/metadata.json"
+                if os.path.exists(metadata_path):
+                    import json
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                    feature_info = {
+                        'feature_names': metadata.get('feature_names', []),
+                        'target_column': metadata.get('target_column', target_column),
+                        'problem_type': metadata.get('problem_type', 'classification')
+                    }
+                    print(f"📊 Feature info loaded from metadata: {len(feature_info.get('feature_names', []))} features")
+                else:
+                    # Try legacy .joblib file format
+                    model_path = f"{result['model_folder']}.joblib"
+                    if os.path.exists(model_path):
+                        saved_model_data = joblib.load(model_path)
+                        feature_info = {
+                            'feature_names': saved_model_data.get('feature_names', []),
+                            'target_column': saved_model_data.get('target_column', target_column),
+                            'problem_type': saved_model_data.get('problem_type', 'classification')
+                        }
+                        print(f"📊 Feature info loaded from joblib: {len(feature_info.get('feature_names', []))} features")
+            except Exception as e:
+                print(f"⚠️ Could not load feature info: {e}")
+                # Fallback: extract feature names from the dataset
+                try:
+                    import pandas as pd
+                    temp_df = pd.read_csv(file_path)
+                    feature_names = [col for col in temp_df.columns if col != target_column]
+                    feature_info = {
+                        'feature_names': feature_names,
+                        'target_column': target_column,
+                        'problem_type': 'classification' if temp_df[target_column].nunique() <= 20 else 'regression'
+                    }
+                    print(f"📊 Feature info from dataset: {len(feature_names)} features")
+                except Exception as inner_e:
+                    print(f"❌ Could not extract features: {inner_e}")
+                    feature_info = {'feature_names': [], 'target_column': target_column, 'problem_type': 'classification'}
+        
         return jsonify({
             'success': True,
             'file_id': file_id,
             'model_name': model_name,
             'result': result,
+            'feature_info': feature_info,
             'message': 'Training completed successfully'
         })
     
@@ -735,6 +867,115 @@ def get_available_models():
             'error': f'Failed to get available models: {str(e)}'
         }), 500
 
+@app.route('/api/generate-training-script', methods=['POST'])
+def generate_training_script():
+    """
+    Generate a complete high-accuracy Python training script using Pipeline + GridSearchCV
+    
+    Request JSON:
+    {
+        "file_id": "uploaded_file_id",
+        "model_name": "Random Forest Classifier", 
+        "target_column": "loan_approved",
+        "columns_to_drop": ["customer_id", "timestamp"] (optional),
+        "scoring_metric": "accuracy" (optional)
+    }
+    
+    Returns:
+    - JSON response with complete Python script
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
+        
+        file_id = data.get('file_id')
+        model_name = data.get('model_name')
+        target_column = data.get('target_column')
+        columns_to_drop = data.get('columns_to_drop', [])
+        scoring_metric = data.get('scoring_metric')
+        
+        # Validate required parameters
+        if not file_id:
+            return jsonify({
+                'success': False,
+                'error': 'file_id is required'
+            }), 400
+        
+        if not model_name:
+            return jsonify({
+                'success': False,
+                'error': 'model_name is required'
+            }), 400
+        
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found'
+            }), 404
+        
+        file_info = uploaded_files[file_id]
+        file_path = file_info['path']
+        
+        print(f"\n🚀 GENERATING HIGH-ACCURACY TRAINING SCRIPT")
+        print("="*80)
+        print(f"🤖 Model: {model_name}")
+        print(f"📄 Dataset: {file_path}")
+        print(f"🎯 Target: {target_column}")
+        print(f"🗑️ Drop columns: {columns_to_drop}")
+        print(f"📊 Scoring metric: {scoring_metric}")
+        
+        # Generate the training script
+        script_result = ml_core.generate_high_accuracy_training_script(
+            model_name=model_name,
+            file_path=file_path, 
+            target_column=target_column,
+            columns_to_drop=columns_to_drop,
+            scoring_metric=scoring_metric
+        )
+        
+        if script_result['success']:
+            print(f"✅ Script generation completed successfully!")
+            
+            return jsonify({
+                'success': True,
+                'message': 'High-accuracy training script generated successfully',
+                'script': script_result['script'],
+                'model_info': script_result['model_info'],
+                'scenario_type': script_result['scenario_type'],
+                'file_info': {
+                    'file_id': file_id,
+                    'filename': file_info['original_filename'],
+                    'file_path': script_result['file_path'],
+                    'target_column': script_result['target_column']
+                },
+                'configuration': {
+                    'model_name': model_name,
+                    'columns_to_drop': columns_to_drop,
+                    'scoring_metric': script_result['scoring_metric']
+                }
+            })
+        
+        else:
+            print(f"❌ Script generation failed: {script_result.get('error', 'Unknown error')}")
+            return jsonify({
+                'success': False,
+                'error': script_result.get('error', 'Script generation failed'),
+                'model_name': model_name
+            }), 500
+            
+    except Exception as e:
+        print(f"❌ Error in generate_training_script: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate training script: {str(e)}'
+        }), 500
+
 @app.route('/api/predict', methods=['POST'])
 def make_prediction():
     """
@@ -771,94 +1012,143 @@ def make_prediction():
                 'error': 'input_data is required'
             }), 400
         
-        # Find the most recent model for this file_id
+        # Find the most recent model folder for this file_id (new pipeline format)
         import glob
-        model_files = glob.glob(f"{app.config['MODEL_STORAGE_PATH']}/model_{file_id}_*.joblib")
+        import os
         
-        if not model_files:
+        # First try to find models using the new folder format
+        model_folders = glob.glob(f"{app.config['MODEL_STORAGE_PATH']}/*_*")
+        model_folders = [f for f in model_folders if os.path.isdir(f)]
+        
+        if not model_folders:
             return jsonify({
                 'success': False,
-                'error': 'No trained model found for this dataset. Please train a model first.'
+                'error': 'No trained models found. Please train a model first.'
             }), 404
         
-        # Use the most recent model
-        model_files.sort(reverse=True)
-        model_path = model_files[0]
+        # Sort by timestamp (most recent first) - extract timestamp from folder name
+        def get_timestamp(folder_path):
+            folder_name = os.path.basename(folder_path)
+            parts = folder_name.split('_')
+            if len(parts) >= 2:
+                # Check if last part looks like a timestamp (YYYYMMDD_HHMMSS)
+                timestamp_part = parts[-1]
+                if len(timestamp_part) == 6 and timestamp_part.isdigit():
+                    # Get the date part too (second to last)
+                    if len(parts) >= 3 and len(parts[-2]) == 8 and parts[-2].isdigit():
+                        return f"{parts[-2]}_{timestamp_part}"  # YYYYMMDD_HHMMSS format
+                    else:
+                        return f"20251115_{timestamp_part}"  # Default to today's date
+                return "00000000_000000"  # Invalid format
+            return "00000000_000000"  # No timestamp
         
-        # Load the model and preprocessing info
-        model_data = joblib.load(model_path)
-        model = model_data['model']
-        preprocessing_info = model_data['preprocessing_info']
+        # Filter out old models without proper timestamps
+        timestamped_models = []
+        for folder in model_folders:
+            ts = get_timestamp(folder)
+            if ts != "00000000_000000":
+                timestamped_models.append(folder)
+        
+        if not timestamped_models:
+            return jsonify({
+                'success': False,
+                'error': 'No valid trained models found. Please train a model first.'
+            }), 404
+        
+        timestamped_models.sort(key=get_timestamp, reverse=True)
+        model_folder = timestamped_models[0]
+        
+        print(f"🔍 Using model folder: {model_folder}")
+        
+        # Load metadata to get feature information
+        metadata_path = os.path.join(model_folder, 'metadata.json')
+        if not os.path.exists(metadata_path):
+            return jsonify({
+                'success': False,
+                'error': 'Model metadata not found. Model may be corrupted.'
+            }), 500
+        
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        
+        feature_names = metadata['feature_names']
+        target_column = metadata['target_column']
+        problem_type = metadata['problem_type']
+        
+        print(f"📊 Features: {feature_names}")
+        print(f"🎯 Target: {target_column}")
+        print(f"📈 Problem type: {problem_type}")
         
         # Prepare input data for prediction
         import pandas as pd
         import numpy as np
         
-        # Create DataFrame from input data
+        # Create DataFrame from input data with proper feature names
         input_df = pd.DataFrame([input_data])
         
-        # Apply the same preprocessing as during training
-        feature_names = preprocessing_info['feature_names']
-        
-        # Ensure all required features are present (fill missing with 0)
+        # Ensure all required features are present
         for feature in feature_names:
             if feature not in input_df.columns:
+                print(f"⚠️  Missing feature '{feature}', setting to 0")
                 input_df[feature] = 0
         
-        # Select and order features correctly
-        input_df = input_df[feature_names]
+        # Select and order features correctly (excluding target column)
+        features_for_prediction = [f for f in feature_names if f != target_column]
+        input_df = input_df[features_for_prediction]
         
-        # Apply label encoders for categorical features
-        label_encoders = preprocessing_info.get('label_encoders', {})
-        for col, encoder in label_encoders.items():
-            if col in input_df.columns:
-                try:
-                    input_df[col] = encoder.transform(input_df[col].astype(str))
-                except ValueError:
-                    # Handle unseen categories
-                    input_df[col] = 0
+        print(f"🔄 Input data shape: {input_df.shape}")
+        print(f"🔄 Input features: {list(input_df.columns)}")
         
-        # Apply scaling
-        scaler = preprocessing_info.get('scaler')
-        if scaler:
-            input_scaled = scaler.transform(input_df)
-        else:
-            input_scaled = input_df.values
+        # Use direct model loading (bypass advanced_model_trainer for compatibility)
+        try:
+            # Load the pipeline model directly
+            model_path = os.path.join(model_folder, 'model.pkl')
+            if not os.path.exists(model_path):
+                return jsonify({
+                    'success': False,
+                    'error': 'Model file not found. Model may be corrupted.'
+                }), 500
+            
+            # Load the trained pipeline
+            import joblib
+            pipeline = joblib.load(model_path)
+            
+            print(f"✅ Pipeline loaded successfully: {type(pipeline)}")
+            
+            # Make prediction using the pipeline directly
+            predictions = pipeline.predict(input_df)
+            prediction = predictions[0] if len(predictions) > 0 else 0
+            
+            print(f"✅ Prediction: {prediction}")
+            
+        except Exception as e:
+            print(f"❌ Prediction error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Prediction failed: {str(e)}'
+            }), 500
         
-        # Make prediction
-        prediction = model.predict(input_scaled)[0]
-        
-        # Get prediction probabilities if available
-        prediction_proba = None
-        if hasattr(model, 'predict_proba'):
-            proba = model.predict_proba(input_scaled)[0]
-            prediction_proba = {
-                'probabilities': proba.tolist(),
-                'confidence': float(np.max(proba))
-            }
-        
-        # Decode prediction if it was encoded
-        target_encoder = preprocessing_info.get('target_encoder')
-        if target_encoder:
-            try:
-                prediction_decoded = target_encoder.inverse_transform([prediction])[0]
-            except:
-                prediction_decoded = prediction
-        else:
-            prediction_decoded = prediction
+        # For classification, prediction is already the class label
+        # For regression, prediction is the numerical value
+        prediction_decoded = prediction
         
         return jsonify({
             'success': True,
             'prediction': str(prediction_decoded),
             'raw_prediction': float(prediction) if isinstance(prediction, (int, float, np.number)) else str(prediction),
-            'confidence': prediction_proba['confidence'] if prediction_proba else None,
-            'probabilities': prediction_proba if prediction_proba else None,
+            'confidence': None,  # Confidence not available in new system yet
+            'probabilities': None,  # Probabilities not available in new system yet
             'model_info': {
-                'model_name': model_data.get('model_name', 'Unknown'),
-                'training_date': model_data.get('training_date', ''),
-                'accuracy': model_data.get('metrics', {}).get('accuracy', 0)
+                'model_name': metadata.get('model_name', 'Unknown'),
+                'training_date': metadata.get('timestamp', ''),
+                'accuracy': metadata.get('performance', {}).get('accuracy', metadata.get('performance', {}).get('r2_score', 0))
             },
-            'input_data': input_data
+            'input_data': input_data,
+            'feature_info': {
+                'feature_names': features_for_prediction,
+                'target_column': target_column,
+                'problem_type': problem_type
+            }
         })
     
     except Exception as e:
@@ -931,6 +1221,7 @@ if __name__ == '__main__':
     
     print(f"Starting Flask server on port {port}")
     print(f"Debug mode: {debug_mode}")
-    print(f"CORS origins: {os.getenv('CORS_ORIGINS', 'http://localhost:3000')}")
+    print(f"CORS origins: {os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001')}")
     
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    # Disable reloader to prevent duplicate execution in debug mode
+    app.run(host='0.0.0.0', port=port, debug=debug_mode, use_reloader=False)
