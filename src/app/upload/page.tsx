@@ -47,7 +47,7 @@ function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
 
   return (
     <div
-      className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors duration-200 ${
+      className={`relative border-2 border-dashed rounded-lg  text-center transition-colors duration-200 ${
         dragActive 
           ? 'border-blue-500 bg-blue-50' 
           : 'border-gray-300 hover:border-gray-400'
@@ -167,7 +167,7 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gray-50" style={{paddingTop: '120px', paddingBottom: '48px'}}>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Backend Status Warning */}
         {backendAvailable === false && (

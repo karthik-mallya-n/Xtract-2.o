@@ -6,35 +6,6 @@ import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 
 /**
- * Input Field Co          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Use your trained model to make predictions on new data
-          </p>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="max-w-2xl mx-auto mb-8">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
-                <div className="text-sm text-yellow-800">
-                  <p className="font-medium mb-1">Warning</p>
-                  <p>{error}</p>
-                  {!modelId && (
-                    <Link
-                      href="/training-status"
-                      className="text-blue-600 hover:text-blue-800 underline mt-2 inline-block"
-                    >
-                      Train a model first
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-/**
  * Input Field Component - Reusable form input with label
  */
 interface InputFieldProps {
@@ -259,7 +230,7 @@ export default function InferencePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gray-50" style={{paddingTop: '120px', paddingBottom: '48px'}}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -270,9 +241,32 @@ export default function InferencePage() {
             Make Predictions
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Use your trained Random Forest model to make predictions on new data
+            Use your trained model to make predictions on new data
           </p>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
+                <div className="text-sm text-yellow-800">
+                  <p className="font-medium mb-1">Warning</p>
+                  <p>{error}</p>
+                  {!modelId && (
+                    <Link
+                      href="/training-status"
+                      className="text-blue-600 hover:text-blue-800 underline mt-2 inline-block"
+                    >
+                      Train a model first
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Input Form */}

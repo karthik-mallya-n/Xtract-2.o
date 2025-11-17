@@ -268,7 +268,7 @@ function InputField({ label, name, type = 'text', step, placeholder, value, onCh
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-black shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         required={required}
       />
     </div>
@@ -558,7 +558,7 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gray-50" style={{paddingTop:'30px', paddingBottom: '48px'}}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -706,15 +706,7 @@ export default function ResultsPage() {
                     <h2 className="text-2xl font-bold text-gray-900">Make a Prediction</h2>
                   </div>
                   
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-start">
-                      <Info className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
-                      <div className="text-sm text-blue-800">
-                        <p className="font-medium mb-1">Iris Dataset Features:</p>
-                        <p>Enter values for your dataset features to make a prediction with the trained model.</p>
-                      </div>
-                    </div>
-                  </div>
+                 
 
                   <form onSubmit={handlePrediction} className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
