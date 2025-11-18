@@ -1,22 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { 
-  BarChart, 
   Brain, 
   TrendingUp, 
   Target, 
-  Activity, 
   Zap, 
   Info, 
   Loader2, 
   AlertCircle,
   CheckCircle,
   Settings,
-  Download,
-  BarChart3,
-  PieChart,
-  LineChart
+  BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -31,14 +26,14 @@ interface TabNavigationProps {
 
 function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   return (
-    <div className="border-b border-gray-200 mb-8">
+    <div className="border-b border-gray-700 mb-8">
       <nav className="-mb-px flex space-x-8">
         <button
           onClick={() => onTabChange('visualization')}
-          className={`py-2 px-1 border-b-2 font-medium text-sm ${
+          className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
             activeTab === 'visualization'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-cyan-400 text-cyan-300'
+              : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
           }`}
         >
           <div className="flex items-center">
@@ -48,10 +43,10 @@ function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
         </button>
         <button
           onClick={() => onTabChange('prediction')}
-          className={`py-2 px-1 border-b-2 font-medium text-sm ${
+          className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
             activeTab === 'prediction'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-cyan-400 text-cyan-300'
+              : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
           }`}
         >
           <div className="flex items-center">
@@ -108,6 +103,7 @@ function MetricCard({ title, value, icon: Icon, color, format = 'text', descript
  * Classification Report Component
  */
 interface ClassificationReportProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   classificationReport: Record<string, any>;
 }
 
@@ -200,6 +196,7 @@ function ClassificationReport({ classificationReport }: ClassificationReportProp
  * Model Parameters Component
  */
 interface ModelParametersProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   bestParams: Record<string, any>;
   modelName: string;
 }
@@ -281,6 +278,7 @@ function InputField({ label, name, type = 'text', step, placeholder, value, onCh
 interface PredictionResultProps {
   prediction: string;
   confidence: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   classificationReport?: Record<string, any>;
 }
 
@@ -332,9 +330,21 @@ function PredictionResult({ prediction, confidence, classificationReport }: Pred
  * Main Results Page Component
  */
 export default function ResultsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-800 flex items-center justify-center">
+      <div className="text-white text-lg">Loading...</div>
+    </div>}>
+      <ResultsContent />
+    </Suspense>
+  );
+}
+
+function ResultsContent() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'visualization' | 'prediction'>('visualization');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [trainingResults, setTrainingResults] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -356,14 +366,14 @@ export default function ResultsPage() {
   }>>([]);
 
   // Get feature names from training results
-  const getFeatureNames = (): string[] => {
+  const getFeatureNames = useCallback((): string[] => {
     if (trainingResults?.feature_info?.feature_names) {
       return trainingResults.feature_info.feature_names;
     }
     
     // Fallback to Iris features for backward compatibility
     return ['SepalLengthCm', 'SepalWidthCm', 'PetalLengthCm', 'PetalWidthCm'];
-  };
+  }, [trainingResults?.feature_info?.feature_names]);
 
   // Initialize form data when training results change
   useEffect(() => {
@@ -375,7 +385,7 @@ export default function ResultsPage() {
       });
       setFormData(initialFormData);
     }
-  }, [trainingResults]);
+  }, [trainingResults, getFeatureNames]);
 
   // Load training results from URL params or localStorage
   useEffect(() => {
@@ -435,7 +445,7 @@ export default function ResultsPage() {
         };
         setTrainingResults(mockResults);
         setIsLoading(false);
-      } catch (err) {
+      } catch {
         setError('Failed to load training results');
         setIsLoading(false);
       }
@@ -499,7 +509,7 @@ export default function ResultsPage() {
 
       // Use real prediction from the model
       let predictedClass = apiResult.prediction || 'Unknown';
-      let confidence = apiResult.confidence || 95; // Use model confidence or high default
+      const confidence = apiResult.confidence || 95; // Use model confidence or high default
       
       // For regression models, round to reasonable decimal places
       if (apiResult.feature_info?.problem_type === 'regression') {
@@ -524,7 +534,7 @@ export default function ResultsPage() {
         timestamp: new Date()
       }, ...prev.slice(0, 9)]);
       
-    } catch (err) {
+    } catch {
       setError('Failed to make prediction');
     } finally {
       setIsPredicting(false);
@@ -558,26 +568,31 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{paddingTop:'30px', paddingBottom: '48px'}}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle className="h-10 w-10 text-green-600" />
+    <div className="min-h-screen relative overflow-hidden bg-gray-900">
+      {/* Background Elements */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-cyan-900 opacity-20" />
+      <div className="absolute inset-0 geometric-pattern opacity-30" />
+      
+      <div className="relative z-10" style={{paddingTop:'64px', paddingBottom: '48px'}}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-green-900/30 backdrop-blur-xl rounded-full flex items-center justify-center border border-green-500/30">
+                <CheckCircle className="h-10 w-10 text-green-400" />
+              </div>
             </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-4">
+              Training Complete! 🎉
+            </h1>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Your {trainingResults?.model_name || 'machine learning'} model has been successfully trained. 
+              Explore the results and start making predictions below.
+            </p>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Training Complete! 🎉
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Your {trainingResults?.model_name || 'machine learning'} model has been successfully trained. 
-            Explore the results and start making predictions below.
-          </p>
-        </div>
 
-        {/* Error Display */}
-        {error && (
+          {/* Error Display */}
+          {error && (
           <div className="max-w-4xl mx-auto mb-8">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div className="flex items-start">
@@ -623,13 +638,7 @@ export default function ResultsPage() {
                   color="text-purple-600"
                   description="Algorithm used"
                 />
-                <MetricCard
-                  title="Status"
-                  value={trainingResults.threshold_met ? "✅ Excellent" : "⚠️ Good"}
-                  icon={CheckCircle}
-                  color={trainingResults.threshold_met ? "text-green-600" : "text-yellow-600"}
-                  description={trainingResults.threshold_met ? "90%+ accuracy achieved" : "Below 90% accuracy"}
-                />
+                
               </div>
 
               {/* Classification Report */}
@@ -837,8 +846,9 @@ export default function ResultsPage() {
               </div>
             </div>
           )}
-        </div>
+        </div> 
       </div>
+    </div>
     </div>
   );
 }

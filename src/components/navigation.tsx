@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Database, Brain, Target, BarChart3, Zap, Menu, X } from 'lucide-react';
+import { Database, Brain, Target, BarChart3, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 
@@ -18,7 +18,7 @@ export default function Navigation() {
     { href: '/upload', label: 'Upload Data', icon: Database },
     { href: '/select-model', label: 'Models', icon: Target },
     { href: '/results', label: 'Results', icon: BarChart3 },
-    { href: '/inference', label: 'Predictions', icon: Zap },
+    { href: '/visualization', label: 'Visualization', icon: BarChart3 },
   ];
 
   const toggleMobileMenu = () => {

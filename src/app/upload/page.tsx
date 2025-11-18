@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload, FileText, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -47,27 +47,27 @@ function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
 
   return (
     <div
-      className={`relative border-2 border-dashed rounded-lg  text-center transition-colors duration-200 ${
+      className={`relative border-2 border-dashed rounded-lg text-center transition-colors duration-200 backdrop-blur-xl ${
         dragActive 
-          ? 'border-blue-500 bg-blue-50' 
-          : 'border-gray-300 hover:border-gray-400'
+          ? 'border-cyan-400 bg-cyan-900/20' 
+          : 'border-gray-600 bg-gray-800/30 hover:border-cyan-500'
       } ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center p-12">
         {isLoading ? (
-          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mb-4" />
+          <Loader2 className="h-12 w-12 text-cyan-400 animate-spin mb-4" />
         ) : (
-          <Upload className="h-12 w-12 text-gray-400 mb-4" />
+          <Upload className="h-12 w-12 text-cyan-400 mb-4" />
         )}
         
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <h3 className="text-lg font-medium text-white mb-2">
           {isLoading ? 'Processing...' : 'Upload your dataset'}
         </h3>
         
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-400 mb-4">
           Drag and drop your file here, or click to browse
         </p>
         
@@ -80,7 +80,7 @@ function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
         />
         
         <button
-          className="px-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200"
+          className="px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 rounded-md transition-all duration-200"
           disabled={isLoading}
         >
           Browse Files
@@ -106,12 +106,26 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string>('');
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
+  
+  // Add request deduplication to prevent duplicate API calls in StrictMode
+  const isBackendCheckInProgress = useRef(false);
 
   // Check backend availability on component mount
   useEffect(() => {
     const checkBackend = async () => {
-      const available = await api.isBackendAvailable();
-      setBackendAvailable(available);
+      // Prevent duplicate requests (especially in React StrictMode)
+      if (isBackendCheckInProgress.current) {
+        return;
+      }
+      
+      isBackendCheckInProgress.current = true;
+      
+      try {
+        const available = await api.isBackendAvailable();
+        setBackendAvailable(available);
+      } finally {
+        isBackendCheckInProgress.current = false;
+      }
     };
     
     checkBackend();
@@ -167,68 +181,84 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{paddingTop: '120px', paddingBottom: '48px'}}>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Backend Status Warning */}
-        {backendAvailable === false && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <AlertCircle className="h-5 w-5 text-red-400" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">
-                  Backend Not Available
-                </h3>
-                <p className="mt-1 text-sm text-red-700">
-                  The Flask server is not running. Please start it by running 
-                  <code className="mx-1 px-1 bg-red-100 rounded">python app.py</code> 
-                  in the my_flask_app directory.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="px-8 py-6 border-b border-gray-200">
-            <h1 className="text-3xl font-bold text-gray-900">Upload Your Dataset</h1>
-            <p className="text-lg text-gray-600 mt-2">
-              Get started by uploading your data and telling us about its characteristics.
+    <div className="min-h-screen relative overflow-hidden bg-gray-900">
+      {/* Background Elements */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-cyan-900 opacity-20" />
+      <div className="absolute inset-0 geometric-pattern opacity-30" />
+      
+      <div className="relative z-10" style={{paddingTop: '64px', paddingBottom: '48px'}}>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-4">
+              Upload Your Data
+            </h1>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
+              Upload your dataset to start exploring, analyzing, and creating powerful machine learning models.
+              We support various file formats for your convenience.
             </p>
           </div>
           
-          <form onSubmit={handleSubmit} className="p-8 space-y-8">
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <div className="flex">
-                  <AlertCircle className="h-5 w-5 text-red-400" />
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
+          {/* Backend Status Warning */}
+          {backendAvailable === false && (
+            <div className="mb-6 bg-red-900/20 border border-red-500/30 rounded-md p-4 backdrop-blur-xl">
+              <div className="flex">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-300">
+                    Backend Not Available
+                  </h3>
+                  <p className="mt-1 text-sm text-red-400">
+                    The Flask server is not running. Please start it by running 
+                    <code className="mx-1 px-1 bg-red-900/40 rounded">python app.py</code> 
+                    in the my_flask_app directory.
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* File Upload Section */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Select Your Dataset File
-              </label>
-              <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
-              
-              {selectedFile && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <div className="flex items-center">
-                    <FileText className="h-5 w-5 text-blue-600 mr-2" />
-                    <span className="text-sm font-medium text-blue-900">
-                      {selectedFile.name}
-                    </span>
-                    <span className="text-sm text-blue-700 ml-2">
-                      ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </span>
+          <div className="bg-gray-800/50 backdrop-blur-xl rounded-lg shadow-lg overflow-hidden border border-gray-700">
+            <div className="px-8 py-6 border-b border-gray-700">
+              <h1 className="text-3xl font-bold text-white">Upload Your Dataset</h1>
+              <p className="text-lg text-gray-300 mt-2">
+                Get started by uploading your data and telling us about its characteristics.
+              </p>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="p-8 space-y-8">
+              {/* Error Message */}
+              {error && (
+                <div className="bg-red-900/20 border border-red-500/30 rounded-md p-4 backdrop-blur-xl">
+                  <div className="flex">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                    <div className="ml-3">
+                      <p className="text-sm text-red-300">{error}</p>
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* File Upload Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-4">
+                  Select Your Dataset File
+                </label>
+                <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
+                
+                {selectedFile && (
+                  <div className="mt-4 p-4 bg-gray-700/50 border border-gray-600 rounded-lg backdrop-blur-xl">
+                    <div className="flex items-center">
+                      <FileText className="h-5 w-5 text-cyan-400 mr-2" />
+                      <span className="text-sm font-medium text-white">
+                        {selectedFile.name}
+                      </span>
+                      <span className="text-sm text-gray-400 ml-2">
+                        ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                    </div>
+                  </div>
+                )}
 
               {/* Upload Progress */}
               {isLoading && uploadProgress > 0 && (
@@ -251,7 +281,7 @@ export default function UploadPage() {
             <div className="grid md:grid-cols-2 gap-6">
               {/* Data Labels Question */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-sm font-medium text-gray-300 mb-3">
                   Is your data labeled or unlabeled?
                 </label>
                 <div className="space-y-2">
@@ -262,9 +292,9 @@ export default function UploadPage() {
                       value="labeled"
                       checked={isLabeled === 'labeled'}
                       onChange={(e) => setIsLabeled(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-600 bg-gray-800"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Labeled</span>
+                    <span className="ml-2 text-sm text-gray-300">Labeled</span>
                   </label>
                   <label className="flex items-center">
                     <input
@@ -273,16 +303,16 @@ export default function UploadPage() {
                       value="unlabeled"
                       checked={isLabeled === 'unlabeled'}
                       onChange={(e) => setIsLabeled(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-600 bg-gray-800"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Unlabeled</span>
+                    <span className="ml-2 text-sm text-gray-300">Unlabeled</span>
                   </label>
                 </div>
               </div>
 
               {/* Data Type Question */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-sm font-medium text-gray-300 mb-3">
                   Is your data continuous or categorical?
                 </label>
                 <div className="space-y-2">
@@ -293,9 +323,9 @@ export default function UploadPage() {
                       value="continuous"
                       checked={dataType === 'continuous'}
                       onChange={(e) => setDataType(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-600 bg-gray-800"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Continuous</span>
+                    <span className="ml-2 text-sm text-gray-300">Continuous</span>
                   </label>
                   <label className="flex items-center">
                     <input
@@ -304,9 +334,9 @@ export default function UploadPage() {
                       value="categorical"
                       checked={dataType === 'categorical'}
                       onChange={(e) => setDataType(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-600 bg-gray-800"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Categorical</span>
+                    <span className="ml-2 text-sm text-gray-300">Categorical</span>
                   </label>
                 </div>
               </div>
@@ -317,10 +347,10 @@ export default function UploadPage() {
               <button
                 type="submit"
                 disabled={!selectedFile || !isLabeled || !dataType || isLoading}
-                className={`px-8 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
+                className={`px-8 py-3 text-base font-medium rounded-lg transition-all duration-200 ${
                   !selectedFile || !isLabeled || !dataType || isLoading
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:from-cyan-600 hover:to-blue-600 shadow-lg'
                 }`}
               >
                 {isLoading ? (
@@ -334,6 +364,7 @@ export default function UploadPage() {
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
     </div>

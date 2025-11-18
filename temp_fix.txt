@@ -1,0 +1,1 @@
+Need to add one more closing </div> tag in results page at line 841 after the max-width container closes, to close the "relative z-10" container that starts at line 566.

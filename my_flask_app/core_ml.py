@@ -5,6 +5,8 @@ Contains the main ML logic for model recommendations and data processing.
 
 import os
 import json
+import time
+import socket
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List, Tuple
@@ -32,10 +34,20 @@ class MLCore:
         if not self.google_api_key:
             raise ValueError("GOOGLE_AI_API_KEY not found in environment variables")
         
-        # Configure Google AI Studio
+        # Configure Google AI Studio with optimized settings for speed
         genai.configure(api_key=self.google_api_key)
-        # Use the best available stable model for Google AI Studio
-        self.genai_model = genai.GenerativeModel('models/gemini-2.5-flash')
+        
+        # Use optimized model configuration for faster responses
+        self.genai_model = genai.GenerativeModel(
+            'models/gemini-2.5-flash',
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,  # Balanced temperature for speed vs quality
+                top_p=0.9,
+                top_k=20,  # Reduced for faster generation
+                max_output_tokens=3000,  # Reduced to prevent truncation
+                candidate_count=1
+            )
+        )
         
         # Initialize the advanced model trainer
         self.advanced_trainer = AdvancedModelTrainer(base_models_dir="models")
@@ -211,108 +223,66 @@ Provide practical, actionable recommendations based on the actual data character
             print(f"   📝 Categorical columns: {dataset_analysis['categorical_columns']}")
             print(f"   📋 First 20 rows length: {len(dataset_analysis['first_20_rows_csv'])} characters")
             
-            # Create persona-based prompt
+            # Create optimized prompt for faster response
             target_type = "categorical" if user_answers.get('data_type') == 'categorical' else "continuous"
             is_labeled = user_answers.get('is_labeled', 'labeled')
-            
-            # Build comprehensive prompt with all models for detected scenario
-            prompt_template = """You are an expert Machine Learning Engineer with 15+ years of experience in model selection and predictive analytics.
 
-Your task is to analyze this dataset and provide comprehensive model recommendations based on the four fundamental scenarios in machine learning.
+            # Create optimized, shorter prompt for faster response
+            prompt = f"""You are an ML expert. Analyze this dataset and recommend models for {target_type} prediction.
 
-🎯 **Scenario 1: Labeled + Continuous (Regression)**
-Task: Predict a continuous numerical value
-ALL Models: Linear Regression, Lasso Regression, Ridge Regression, ElasticNet, Support Vector Regression (SVR), K-Nearest Neighbors (KNN) Regressor, Decision Tree Regressor, Random Forest Regressor, Gradient Boosting Regressor, XGBoost Regressor, LightGBM Regressor, CatBoost Regressor, Neural Networks (MLP Regressor)
+Dataset Info:
+- Rows: {dataset_analysis['total_rows']}
+- Columns: {dataset_analysis['total_columns']}
+- Target Type: {target_type}
+- Labeled: {is_labeled}
+- Numeric: {dataset_analysis['numeric_columns']}
+- Categorical: {dataset_analysis['categorical_columns']}
 
-🏷️ **Scenario 2: Labeled + Categorical (Classification)**  
-Task: Predict a discrete class label
-ALL Models: Logistic Regression, Support Vector Machines (SVM), K-Nearest Neighbors (KNN) Classifier, Naive Bayes, Decision Tree Classifier, Random Forest Classifier, Gradient Boosting Classifier, XGBoost Classifier, LightGBM Classifier, CatBoost Classifier, Neural Networks (MLP Classifier)
+Data Sample:
+{dataset_analysis['first_20_rows_csv'][:400]}
 
-🧩 **Scenario 3: Unlabeled + Continuous (Clustering/Dimensionality Reduction)**
-Task: Find hidden groups or simplify data
-ALL Models: K-Means Clustering, DBSCAN, Hierarchical Clustering, Gaussian Mixture Model (GMM), Principal Component Analysis (PCA), t-SNE, UMAP, Isolation Forest, One-Class SVM
+Recommend 8-10 best models ranked by accuracy. Return valid JSON:
 
-🔗 **Scenario 4: Unlabeled + Categorical (Clustering/Association Rules)**
-Task: Group similar items or find association rules
-ALL Models: K-Modes Clustering, Hierarchical Clustering (Hamming distance), Apriori Algorithm, FP-Growth Algorithm, Eclat Algorithm, Multiple Correspondence Analysis (MCA)
-
-Dataset Information:
-- Rows: {total_rows}
-- Columns: {total_columns}  
-- Target Variable Type: {target_type}
-- Data Labeling: {is_labeled}
-- Numeric Columns: {numeric_columns}
-- Categorical Columns: {categorical_columns}
-
-First 20 rows of actual data:
-{first_20_rows_csv}
-
-CRITICAL INSTRUCTIONS:
-1. **Semantic Analysis**: Analyze column names and values to understand the dataset's domain
-2. **Scenario Detection**: Determine which of the 4 scenarios applies to this dataset
-3. **INCLUDE ALL MODELS**: From the detected scenario, include ALL models listed above (not just top 3)
-4. **Rank by Accuracy**: Rank ALL models in descending order of expected accuracy for this specific dataset
-
-You MUST include ALL models from the detected scenario's model list. Do not limit to just 3-5 models.
-
-Respond in JSON format with ALL models:
-
-```json
 {{
-  "scenario_detected": {{
-    "type": "Labeled + Continuous | Labeled + Categorical | Unlabeled + Continuous | Unlabeled + Categorical",
-    "task": "Regression | Classification | Clustering | Association Rules",
-    "reasoning": "Why this scenario was selected based on data analysis"
-  }},
-  "semantic_analysis": {{
-    "domain": "Identified domain (medical, financial, etc.)",
-    "key_insights": "Important observations from column names and data patterns"
-  }},
+  "scenario": "{"regression" if target_type == "continuous" else "classification"}",
   "recommended_models": [
     {{
-      "rank": 1,
       "name": "Model Name",
-      "expected_accuracy": "95-98%",
-      "reasoning": "Why this model is ranked #1 for this dataset",
-      "advantages": "Key strengths for this scenario"
-    }},
-    {{
-      "rank": 2,
-      "name": "Model Name", 
-      "expected_accuracy": "90-95%",
-      "reasoning": "Why this model is ranked #2",
-      "advantages": "Key strengths"
+      "accuracy_estimate": 85,
+      "description": "Why this model works well for this data"
     }}
-    // CONTINUE FOR ALL MODELS IN THE DETECTED SCENARIO - DO NOT STOP AT 3
   ],
-  "primary_recommendation": {{
-    "model": "Top ranked model name",
-    "confidence": "High/Medium/Low",
-    "rationale": "Final recommendation reasoning"
-  }}
+  "alternative_models": [
+    {{
+      "name": "Alternative Model",
+      "accuracy_estimate": 80,
+      "description": "Alternative option"
+    }}
+  ]
 }}
-```
 
-REMEMBER: Include ALL models from the detected scenario, not just the top few. The user specifically wants to see the complete list ranked by accuracy."""
-
-            # Format the prompt with actual data
-            prompt = prompt_template.format(
-                total_rows=dataset_analysis['total_rows'],
-                total_columns=dataset_analysis['total_columns'],
-                target_type=target_type,
-                is_labeled=is_labeled,
-                numeric_columns=dataset_analysis['numeric_columns'],
-                categorical_columns=dataset_analysis['categorical_columns'],
-                first_20_rows_csv=dataset_analysis['first_20_rows_csv']
-            )
+Provide 5-6 recommended_models and 3-4 alternative_models. Return ONLY valid JSON."""
             
             print(f"📤 SENDING REQUEST TO GEMINI 2.5 FLASH")
             print(f"📋 Prompt length: {len(prompt)} characters")
-            print(f"🔗 Model: Gemini 2.5 Flash")
+            print(f"🔗 Model: Gemini 2.5 Flash (Optimized)")
             
-            # Make the request to Gemini
-            response = self.genai_model.generate_content(prompt)
-            raw_response = response.text
+            # Single request with optimized timeout
+            start_time = time.time()
+            
+            # Set reasonable timeout for faster responses
+            original_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(45)  # 45 second timeout for faster responses
+            
+            try:
+                response = self.genai_model.generate_content(prompt)
+                raw_response = response.text
+                
+                elapsed_time = time.time() - start_time
+                print(f"✅ Response received in {elapsed_time:.2f} seconds")
+                
+            finally:
+                socket.setdefaulttimeout(original_timeout)
             
             print(f"\n📥 RECEIVED RESPONSE FROM GOOGLE AI STUDIO:")
             print(f"   ✅ Response received successfully")
@@ -394,7 +364,36 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 
             except json.JSONDecodeError as e:
                 print(f"⚠️ JSON parsing failed: {str(e)}")
-                print(f"📄 Returning raw response")
+                print(f"📄 Attempting to extract JSON from response...")
+                
+                # Try to extract JSON from markdown blocks
+                import re
+                json_match = re.search(r'```json\s*({.*?})\s*```', raw_response, re.DOTALL)
+                if json_match:
+                    try:
+                        json_content = json_match.group(1)
+                        parsed_recommendations = json.loads(json_content)
+                        print(f"✅ Successfully extracted JSON from markdown")
+                        
+                        # Display extracted recommendations
+                        recommendations_data = parsed_recommendations.get('recommendations', parsed_recommendations)
+                        if 'recommended_models' in recommendations_data:
+                            models = recommendations_data['recommended_models']
+                            print(f"\n🏆 EXTRACTED MODELS ({len(models)}):")
+                            for i, model in enumerate(models, 1):
+                                name = model.get('name', 'Unknown')
+                                accuracy = model.get('accuracy_estimate', 'Unknown')
+                                print(f"  #{i}. {name} - {accuracy}%")
+                        
+                        return {
+                            'success': True,
+                            'recommendations': parsed_recommendations,
+                            'raw_response': raw_response
+                        }
+                    except json.JSONDecodeError:
+                        pass
+                
+                print(f"❌ Could not parse JSON. Returning raw response.")
                 return {
                     'success': True,
                     'recommendations': {},

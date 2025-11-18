@@ -8,13 +8,14 @@ import uuid
 import json
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 import joblib
 
 # Import our custom modules
 from core_ml import ml_core
+from chart_generator import ChartGenerator
 # Task system disabled due to import issues
 # from tasks import celery_app, train_model_task
 
@@ -38,6 +39,10 @@ def create_app():
     # Configure CORS
     cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001').split(',')
     CORS(app, origins=cors_origins, supports_credentials=True)
+    
+    # Initialize chart generator
+    global chart_generator
+    chart_generator = ChartGenerator()
     
     return app
 
@@ -1188,6 +1193,302 @@ def list_models():
         return jsonify({
             'success': False,
             'error': f'Failed to list models: {str(e)}'
+        }), 500
+
+@app.route('/api/dataset/<file_id>', methods=['GET'])
+def get_dataset_info(file_id):
+    """
+    Get dataset information and sample data for visualization
+    
+    Returns:
+    - JSON response with dataset columns, sample data, and metadata
+    """
+    try:
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found. Please upload a file first.'
+            }), 404
+
+        file_info = uploaded_files[file_id]
+        file_path = file_info['file_path']
+
+        # Load and analyze the dataset
+        import pandas as pd
+        
+        # Read the file based on extension
+        _, ext = os.path.splitext(file_path)
+        if ext.lower() == '.csv':
+            df = pd.read_csv(file_path)
+        elif ext.lower() in ['.xlsx', '.xls']:
+            df = pd.read_excel(file_path)
+        elif ext.lower() == '.json':
+            df = pd.read_json(file_path)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Unsupported file format'
+            }), 400
+
+        # Get basic dataset information
+        numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+        categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
+        datetime_columns = df.select_dtypes(include=['datetime']).columns.tolist()
+        
+        # Get sample data (first 10 rows)
+        sample_data = df.head(10).to_dict('records')
+        
+        # Convert numpy types to Python types for JSON serialization
+        for row in sample_data:
+            for key, value in row.items():
+                if pd.isna(value):
+                    row[key] = None
+                elif hasattr(value, 'item'):  # numpy types
+                    row[key] = value.item()
+
+        return jsonify({
+            'success': True,
+            'file_id': file_id,
+            'filename': file_info.get('filename', ''),
+            'dataset_info': {
+                'total_rows': len(df),
+                'total_columns': len(df.columns),
+                'columns': df.columns.tolist(),
+                'numeric_columns': numeric_columns,
+                'categorical_columns': categorical_columns,
+                'datetime_columns': datetime_columns,
+                'sample_data': sample_data,
+                'data_types': df.dtypes.astype(str).to_dict()
+            }
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Failed to get dataset info: {str(e)}'
+        }), 500
+
+@app.route('/api/generate-chart', methods=['POST'])
+def generate_chart():
+    """
+    Generate a chart based on uploaded data and configuration
+    
+    Expected JSON body:
+    - file_id: ID of uploaded file
+    - chart_type: Type of chart to generate
+    - config: Chart configuration
+    - export_format: Output format (html, png, svg, pdf)
+    
+    Returns:
+    - JSON response with chart data
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON body is required'
+            }), 400
+        
+        file_id = data.get('file_id')
+        chart_type = data.get('chart_type')
+        config = data.get('config', {})
+        export_format = data.get('export_format', 'html')
+        
+        if not file_id:
+            return jsonify({
+                'success': False,
+                'error': 'file_id is required'
+            }), 400
+        
+        if not chart_type:
+            return jsonify({
+                'success': False,
+                'error': 'chart_type is required'
+            }), 400
+        
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found. Please upload a file first.'
+            }), 404
+        
+        file_info = uploaded_files[file_id]
+        file_path = file_info['file_path']
+        
+        # Load the dataset
+        import pandas as pd
+        
+        try:
+            if file_path.endswith('.csv'):
+                df = pd.read_csv(file_path)
+            elif file_path.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file_path)
+            elif file_path.endswith('.json'):
+                df = pd.read_json(file_path)
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Unsupported file format'
+                }), 400
+        
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to load dataset: {str(e)}'
+            }), 500
+        
+        # Generate the chart
+        print(f"🎨 Generating {chart_type} chart for file {file_id}")
+        print(f"📊 Dataset shape: {df.shape}")
+        print(f"⚙️ Config: {config}")
+        
+        result = chart_generator.generate_chart(df, chart_type, config, export_format)
+        
+        if result['success']:
+            print(f"✅ Chart generated successfully")
+            return jsonify({
+                'success': True,
+                'chart_type': chart_type,
+                'config': config,
+                'html_content': result.get('html_content'),
+                'image_url': result.get('image_url'),
+                'format': result.get('format'),
+                'warning': result.get('warning')
+            })
+        else:
+            print(f"❌ Chart generation failed: {result['error']}")
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 500
+    
+    except Exception as e:
+        print(f"❌ Error in generate_chart: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate chart: {str(e)}'
+        }), 500
+
+@app.route('/api/export-chart', methods=['POST'])
+def export_chart():
+    """
+    Export a chart in specified format
+    
+    Expected JSON body:
+    - file_id: ID of uploaded file
+    - chart_type: Type of chart to generate
+    - config: Chart configuration
+    - export_format: Output format (png, svg, pdf, html)
+    
+    Returns:
+    - File download or JSON response
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON body is required'
+            }), 400
+        
+        file_id = data.get('file_id')
+        chart_type = data.get('chart_type')
+        config = data.get('config', {})
+        export_format = data.get('export_format', 'png')
+        
+        if not file_id or not chart_type:
+            return jsonify({
+                'success': False,
+                'error': 'file_id and chart_type are required'
+            }), 400
+        
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found. Please upload a file first.'
+            }), 404
+        
+        file_info = uploaded_files[file_id]
+        file_path = file_info['file_path']
+        
+        # Load the dataset
+        import pandas as pd
+        
+        try:
+            if file_path.endswith('.csv'):
+                df = pd.read_csv(file_path)
+            elif file_path.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file_path)
+            elif file_path.endswith('.json'):
+                df = pd.read_json(file_path)
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Unsupported file format'
+                }), 400
+        
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to load dataset: {str(e)}'
+            }), 500
+        
+        # Generate the chart for export
+        print(f"📤 Exporting {chart_type} chart as {export_format}")
+        
+        result = chart_generator.generate_chart(df, chart_type, config, export_format)
+        
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 500
+        
+        # Return file or content based on format
+        if export_format == 'html':
+            # Return HTML content as downloadable file
+            from io import BytesIO
+            html_content = result.get('html_content', '')
+            
+            buffer = BytesIO()
+            buffer.write(html_content.encode('utf-8'))
+            buffer.seek(0)
+            
+            return send_file(
+                buffer,
+                as_attachment=True,
+                download_name=f'chart_{chart_type}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html',
+                mimetype='text/html'
+            )
+        
+        else:
+            # Return image file
+            file_path_result = result.get('file_path')
+            filename = result.get('filename')
+            
+            if file_path_result and os.path.exists(file_path_result):
+                return send_file(
+                    file_path_result,
+                    as_attachment=True,
+                    download_name=filename
+                )
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Export file not found'
+                }), 500
+    
+    except Exception as e:
+        print(f"❌ Error in export_chart: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to export chart: {str(e)}'
         }), 500
 
 @app.errorhandler(413)

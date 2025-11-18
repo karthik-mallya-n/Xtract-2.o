@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Brain, Target, Loader2, AlertCircle, Zap, Activity, TrendingUp, Star, Database } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -190,10 +190,18 @@ export default function SelectModelPage() {
   const [recommendations, setRecommendations] = useState<ModelRecommendation | null>(null);
   const [error, setError] = useState<string>('');
   const [fileId, setFileId] = useState<string>('');
+  
+  // Add request deduplication to prevent duplicate API calls in StrictMode
+  const isRequestInProgress = useRef(false);
 
   // Load file ID from localStorage and fetch recommendations
   useEffect(() => {
     const loadRecommendations = async () => {
+      // Prevent duplicate requests (especially in React StrictMode)
+      if (isRequestInProgress.current) {
+        return;
+      }
+
       const storedFileId = localStorage.getItem('currentFileId');
       
       if (!storedFileId) {
@@ -203,6 +211,9 @@ export default function SelectModelPage() {
       }
 
       setFileId(storedFileId);
+      
+      // Mark request as in progress
+      isRequestInProgress.current = true;
 
       try {
         const response = await apiClient.getModelRecommendations(storedFileId);
@@ -217,6 +228,8 @@ export default function SelectModelPage() {
         setError('Failed to connect to the backend. Please ensure the Flask server is running.');
       } finally {
         setIsLoading(false);
+        // Reset the flag when request completes
+        isRequestInProgress.current = false;
       }
     };
 

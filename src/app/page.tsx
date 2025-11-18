@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from "next/link";
-import { ArrowRight, Brain, Zap, Target, Database, BarChart3, Sparkles, CheckCircle } from "lucide-react";
+import { ArrowRight, Brain, Zap, Target, Database, BarChart3, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import ParticleBackground from "@/components/ParticleBackground";
