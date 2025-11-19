@@ -761,7 +761,7 @@ export default function VisualizationPage() {
                     transition={{ duration: 0.5 }}
                     className="visualization-container w-full h-full overflow-auto"
                     style={{ minHeight: '400px' }}
-                  >
+                  > 
                     <iframe
                       srcDoc={currentVisualization.html}
                       className="w-full h-full border-0 rounded-lg"
