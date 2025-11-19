@@ -450,3 +450,33 @@ main > div[style*="paddingTop"] {
   backface-visibility: hidden;
   transform: translateZ(0);
 }
+
+/* Visualization Container Styling */
+.visualization-container {
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+}
+
+.visualization-container > div {
+  width: 100% !important;
+  height: auto !important;
+}
+
+.visualization-container .js-plotly-plot,
+.visualization-container .plotly-graph-div {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Ensure plotly charts are responsive */
+.visualization-container .plot-container {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Dark theme for plotly charts */
+.visualization-container .plotly-graph-div {
+  background-color: rgba(17, 17, 24, 0.5) !important;
+  border-radius: 8px;
+}

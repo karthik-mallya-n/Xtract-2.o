@@ -35,6 +35,20 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
+
+# Clustering Models
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+from sklearn.mixture import GaussianMixture
+
+# Dimensionality Reduction
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+
+# Anomaly Detection
+from sklearn.ensemble import IsolationForest
+from sklearn.svm import OneClassSVM
 
 # Advanced libraries for better performance
 try:
@@ -48,6 +62,18 @@ try:
     LIGHTGBM_AVAILABLE = True
 except ImportError:
     LIGHTGBM_AVAILABLE = False
+
+try:
+    from catboost import CatBoostClassifier, CatBoostRegressor
+    CATBOOST_AVAILABLE = True
+except ImportError:
+    CATBOOST_AVAILABLE = False
+
+try:
+    import umap.umap_ as umap
+    UMAP_AVAILABLE = True
+except ImportError:
+    UMAP_AVAILABLE = False
 
 class AdvancedModelTrainer:
     """Advanced ML model trainer with 90%+ accuracy optimization"""
@@ -257,6 +283,129 @@ class AdvancedModelTrainer:
                     'random_state': [42]
                 }
             }
+        
+        if CATBOOST_AVAILABLE:
+            self.classification_models['CatBoost'] = {
+                'model': CatBoostClassifier,
+                'params': {
+                    'n_estimators': [100, 200],
+                    'learning_rate': [0.05, 0.1, 0.2],
+                    'max_depth': [3, 5, 7],
+                    'random_state': [42],
+                    'verbose': [False]
+                }
+            }
+            self.regression_models['CatBoost Regressor'] = {
+                'model': CatBoostRegressor,
+                'params': {
+                    'n_estimators': [100, 200],
+                    'learning_rate': [0.05, 0.1, 0.2],
+                    'max_depth': [3, 5, 7],
+                    'random_state': [42],
+                    'verbose': [False]
+                }
+            }
+        
+        # Add Polynomial Regression
+        self.regression_models['Polynomial Regression'] = {
+            'model': Pipeline,
+            'params': {
+                'polynomialfeatures__degree': [2, 3, 4],
+                'linearregression__fit_intercept': [True, False]
+            },
+            'steps': [
+                ('polynomialfeatures', PolynomialFeatures()),
+                ('linearregression', LinearRegression())
+            ]
+        }
+        
+        # Clustering Models
+        self.clustering_models = {
+            'K-Means': {
+                'model': KMeans,
+                'params': {
+                    'n_clusters': [2, 3, 4, 5, 6, 7, 8],
+                    'init': ['k-means++', 'random'],
+                    'n_init': [10, 20],
+                    'random_state': [42]
+                }
+            },
+            'DBSCAN': {
+                'model': DBSCAN,
+                'params': {
+                    'eps': [0.3, 0.5, 0.7, 1.0],
+                    'min_samples': [3, 5, 7, 10],
+                    'metric': ['euclidean', 'manhattan']
+                }
+            },
+            'Hierarchical Clustering': {
+                'model': AgglomerativeClustering,
+                'params': {
+                    'n_clusters': [2, 3, 4, 5, 6, 7, 8],
+                    'linkage': ['ward', 'complete', 'average'],
+                    'metric': ['euclidean']
+                }
+            },
+            'Gaussian Mixture Model': {
+                'model': GaussianMixture,
+                'params': {
+                    'n_components': [2, 3, 4, 5, 6, 7, 8],
+                    'covariance_type': ['full', 'tied', 'diag', 'spherical'],
+                    'random_state': [42]
+                }
+            }
+        }
+        
+        # Dimensionality Reduction Models
+        self.dimensionality_reduction_models = {
+            'PCA': {
+                'model': PCA,
+                'params': {
+                    'n_components': [0.8, 0.9, 0.95, 0.99],
+                    'random_state': [42]
+                }
+            },
+            't-SNE': {
+                'model': TSNE,
+                'params': {
+                    'n_components': [2, 3],
+                    'perplexity': [20, 30, 50],
+                    'learning_rate': [200, 500, 1000],
+                    'random_state': [42]
+                }
+            }
+        }
+        
+        if UMAP_AVAILABLE:
+            self.dimensionality_reduction_models['UMAP'] = {
+                'model': umap.UMAP,
+                'params': {
+                    'n_components': [2, 3],
+                    'n_neighbors': [5, 15, 30],
+                    'min_dist': [0.1, 0.25, 0.5],
+                    'random_state': [42]
+                }
+            }
+        
+        # Anomaly Detection Models
+        self.anomaly_detection_models = {
+            'Isolation Forest': {
+                'model': IsolationForest,
+                'params': {
+                    'n_estimators': [50, 100, 200],
+                    'contamination': [0.05, 0.1, 0.15],
+                    'random_state': [42]
+                }
+            },
+            'One-Class SVM': {
+                'model': OneClassSVM,
+                'params': {
+                    'kernel': ['rbf', 'linear', 'poly'],
+                    'gamma': ['scale', 'auto', 0.001, 0.01],
+                    'nu': [0.05, 0.1, 0.2]
+                }
+            }
+        }
     
     def ensure_models_directory(self):
         """Ensure the models directory exists"""
@@ -620,3 +769,273 @@ class AdvancedModelTrainer:
             predictions = preprocessing_info['target_encoder'].inverse_transform(predictions)
         
         return predictions
+    
+    def train_clustering_models(self, df: pd.DataFrame, model_names: List[str] = None) -> Dict[str, Any]:
+        """Train clustering models for unsupervised learning"""
+        print(f"\n🧩 TRAINING CLUSTERING MODELS")
+        print("="*80)
+        
+        if model_names is None:
+            model_names = list(self.clustering_models.keys())
+        
+        # Preprocess data for clustering (no target column)
+        X = df.select_dtypes(include=[np.number]).values
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        results = {}
+        
+        for model_name in model_names:
+            if model_name not in self.clustering_models:
+                print(f"⚠️ Model {model_name} not found in clustering models")
+                continue
+                
+            print(f"\n🔄 Training {model_name}...")
+            model_info = self.clustering_models[model_name]
+            
+            try:
+                # Get best parameters through silhouette score optimization
+                best_score = -1
+                best_model = None
+                best_params = None
+                
+                # Try different parameter combinations
+                model_class = model_info['model']
+                param_grid = model_info['params']
+                
+                from itertools import product
+                param_combinations = [dict(zip(param_grid.keys(), v)) for v in product(*param_grid.values())]
+                
+                for params in param_combinations[:5]:  # Limit combinations for speed
+                    try:
+                        if model_name == 'DBSCAN':
+                            model = model_class(**params)
+                            labels = model.fit_predict(X_scaled)
+                            # For DBSCAN, we'll use the number of clusters as a simple metric
+                            score = len(set(labels)) - (1 if -1 in labels else 0)
+                        else:
+                            model = model_class(**params)
+                            labels = model.fit_predict(X_scaled)
+                            
+                            # Use silhouette score for other clustering methods
+                            if len(set(labels)) > 1:
+                                from sklearn.metrics import silhouette_score
+                                score = silhouette_score(X_scaled, labels)
+                            else:
+                                score = -1
+                        
+                        if score > best_score:
+                            best_score = score
+                            best_model = model
+                            best_params = params
+                            
+                    except Exception as e:
+                        continue
+                
+                if best_model is not None:
+                    # Save the model
+                    model_dir = self.get_model_path(model_name, 'clustering')
+                    model_file = os.path.join(model_dir, 'model.pkl')
+                    
+                    model_data = {
+                        'model': best_model,
+                        'scaler': scaler,
+                        'feature_names': df.select_dtypes(include=[np.number]).columns.tolist(),
+                        'params': best_params,
+                        'score': best_score
+                    }
+                    
+                    with open(model_file, 'wb') as f:
+                        pickle.dump(model_data, f)
+                    
+                    results[model_name] = {
+                        'success': True,
+                        'score': best_score,
+                        'params': best_params,
+                        'model_path': model_file
+                    }
+                    
+                    print(f"✅ {model_name} - Score: {best_score:.4f}")
+                else:
+                    print(f"❌ {model_name} - Training failed")
+                    results[model_name] = {'success': False, 'error': 'No valid model found'}
+                    
+            except Exception as e:
+                print(f"❌ {model_name} - Error: {str(e)}")
+                results[model_name] = {'success': False, 'error': str(e)}
+        
+        return results
+    
+    def train_dimensionality_reduction_models(self, df: pd.DataFrame, model_names: List[str] = None) -> Dict[str, Any]:
+        """Train dimensionality reduction models"""
+        print(f"\n📉 TRAINING DIMENSIONALITY REDUCTION MODELS")
+        print("="*80)
+        
+        if model_names is None:
+            model_names = list(self.dimensionality_reduction_models.keys())
+        
+        # Preprocess data
+        X = df.select_dtypes(include=[np.number]).values
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        results = {}
+        
+        for model_name in model_names:
+            if model_name not in self.dimensionality_reduction_models:
+                print(f"⚠️ Model {model_name} not found in dimensionality reduction models")
+                continue
+                
+            print(f"\n🔄 Training {model_name}...")
+            model_info = self.dimensionality_reduction_models[model_name]
+            
+            try:
+                model_class = model_info['model']
+                param_grid = model_info['params']
+                
+                # For dimensionality reduction, we'll use explained variance or similar metrics
+                best_score = -1
+                best_model = None
+                best_params = None
+                
+                from itertools import product
+                param_combinations = [dict(zip(param_grid.keys(), v)) for v in product(*param_grid.values())]
+                
+                for params in param_combinations[:3]:  # Limit for speed
+                    try:
+                        model = model_class(**params)
+                        
+                        if model_name == 'PCA':
+                            transformed = model.fit_transform(X_scaled)
+                            score = sum(model.explained_variance_ratio_)
+                        elif model_name in ['t-SNE', 'UMAP']:
+                            transformed = model.fit_transform(X_scaled)
+                            # For t-SNE and UMAP, use the reconstruction quality
+                            score = transformed.shape[1] / X_scaled.shape[1]  # Simple metric
+                        else:
+                            transformed = model.fit_transform(X_scaled)
+                            score = 1.0  # Default score
+                        
+                        if score > best_score:
+                            best_score = score
+                            best_model = model
+                            best_params = params
+                            
+                    except Exception as e:
+                        continue
+                
+                if best_model is not None:
+                    # Save the model
+                    model_dir = self.get_model_path(model_name, 'dimensionality_reduction')
+                    model_file = os.path.join(model_dir, 'model.pkl')
+                    
+                    model_data = {
+                        'model': best_model,
+                        'scaler': scaler,
+                        'feature_names': df.select_dtypes(include=[np.number]).columns.tolist(),
+                        'params': best_params,
+                        'score': best_score
+                    }
+                    
+                    with open(model_file, 'wb') as f:
+                        pickle.dump(model_data, f)
+                    
+                    results[model_name] = {
+                        'success': True,
+                        'score': best_score,
+                        'params': best_params,
+                        'model_path': model_file
+                    }
+                    
+                    print(f"✅ {model_name} - Score: {best_score:.4f}")
+                else:
+                    print(f"❌ {model_name} - Training failed")
+                    results[model_name] = {'success': False, 'error': 'No valid model found'}
+                    
+            except Exception as e:
+                print(f"❌ {model_name} - Error: {str(e)}")
+                results[model_name] = {'success': False, 'error': str(e)}
+        
+        return results
+    
+    def train_anomaly_detection_models(self, df: pd.DataFrame, model_names: List[str] = None) -> Dict[str, Any]:
+        """Train anomaly detection models"""
+        print(f"\n🚨 TRAINING ANOMALY DETECTION MODELS")
+        print("="*80)
+        
+        if model_names is None:
+            model_names = list(self.anomaly_detection_models.keys())
+        
+        # Preprocess data
+        X = df.select_dtypes(include=[np.number]).values
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        results = {}
+        
+        for model_name in model_names:
+            if model_name not in self.anomaly_detection_models:
+                print(f"⚠️ Model {model_name} not found in anomaly detection models")
+                continue
+                
+            print(f"\n🔄 Training {model_name}...")
+            model_info = self.anomaly_detection_models[model_name]
+            
+            try:
+                model_class = model_info['model']
+                params = model_info['params']
+                
+                # Use default parameters for anomaly detection
+                if model_name == 'Isolation Forest':
+                    best_params = {'n_estimators': 100, 'contamination': 0.1, 'random_state': 42}
+                elif model_name == 'One-Class SVM':
+                    best_params = {'kernel': 'rbf', 'gamma': 'scale', 'nu': 0.1}
+                else:
+                    best_params = {k: v[0] for k, v in params.items()}
+                
+                model = model_class(**best_params)
+                model.fit(X_scaled)
+                
+                # Test the model by predicting on the same data
+                predictions = model.predict(X_scaled)
+                anomaly_rate = (predictions == -1).sum() / len(predictions)
+                
+                # Save the model
+                model_dir = self.get_model_path(model_name, 'anomaly_detection')
+                model_file = os.path.join(model_dir, 'model.pkl')
+                
+                model_data = {
+                    'model': model,
+                    'scaler': scaler,
+                    'feature_names': df.select_dtypes(include=[np.number]).columns.tolist(),
+                    'params': best_params,
+                    'anomaly_rate': anomaly_rate
+                }
+                
+                with open(model_file, 'wb') as f:
+                    pickle.dump(model_data, f)
+                
+                results[model_name] = {
+                    'success': True,
+                    'anomaly_rate': anomaly_rate,
+                    'params': best_params,
+                    'model_path': model_file
+                }
+                
+                print(f"✅ {model_name} - Anomaly Rate: {anomaly_rate:.4f}")
+                
+            except Exception as e:
+                print(f"❌ {model_name} - Error: {str(e)}")
+                results[model_name] = {'success': False, 'error': str(e)}
+        
+        return results
+    
+    def get_all_available_models(self) -> Dict[str, List[str]]:
+        """Get all available models organized by category"""
+        return {
+            'classification': list(self.classification_models.keys()),
+            'regression': list(self.regression_models.keys()),
+            'clustering': list(self.clustering_models.keys()),
+            'dimensionality_reduction': list(self.dimensionality_reduction_models.keys()),
+            'anomaly_detection': list(self.anomaly_detection_models.keys())
+        }

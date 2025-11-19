@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, FileText, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Loader2, AlertCircle, Brain, Zap, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { api } from '@/lib/api';
+import ParticleBackground from '@/components/ParticleBackground';
 
 /**
  * File Upload Component - Handles drag and drop file upload
@@ -46,28 +48,46 @@ function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
   };
 
   return (
-    <div
-      className={`relative border-2 border-dashed rounded-lg  text-center transition-colors duration-200 ${
+    <motion.div
+      className={`futuristic-card relative border-2 border-dashed text-center transition-all duration-300 ${
         dragActive 
-          ? 'border-blue-500 bg-blue-50' 
-          : 'border-gray-300 hover:border-gray-400'
+          ? 'border-cyan-400 bg-gray-800/30' 
+          : 'border-gray-600 hover:border-cyan-400/50'
       } ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
+      style={{ padding: '48px' }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
     >
       <div className="flex flex-col items-center">
         {isLoading ? (
-          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mb-4" />
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <Loader2 className="h-16 w-16 text-cyan-400 mb-6" />
+          </motion.div>
         ) : (
-          <Upload className="h-12 w-12 text-gray-400 mb-4" />
+          <motion.div
+            className="p-6 rounded-full mb-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(0, 245, 255, 0.2) 0%, rgba(153, 69, 255, 0.2) 100%)',
+              border: '1px solid rgba(0, 245, 255, 0.3)'
+            }}
+            whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(0, 245, 255, 0.3)' }}
+          >
+            <Upload className="h-12 w-12 text-cyan-400" />
+          </motion.div>
         )}
         
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          {isLoading ? 'Processing...' : 'Upload your dataset'}
+        <h3 className="text-2xl font-bold text-white mb-4">
+          {isLoading ? 'Processing...' : 'Upload Your Dataset'}
         </h3>
         
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-300 mb-8 text-lg leading-relaxed">
           Drag and drop your file here, or click to browse
         </p>
         
@@ -79,18 +99,33 @@ function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
           disabled={isLoading}
         />
         
-        <button
-          className="px-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200"
+        <motion.button
+          className="px-8 py-4 text-lg font-bold rounded-xl"
+          style={{
+            background: 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+            border: 'none',
+            color: '#ffffff',
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            letterSpacing: '0.8px',
+            boxShadow: '0 8px 32px rgba(0, 245, 255, 0.3)'
+          }}
           disabled={isLoading}
+          whileHover={{ 
+            scale: 1.05,
+            boxShadow: '0 0 30px rgba(0, 245, 255, 0.4)'
+          }}
+          whileTap={{ scale: 0.98 }}
         >
+          <Zap className="h-5 w-5 mr-2 inline" />
           Browse Files
-        </button>
+        </motion.button>
         
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-cyan-400 text-sm mt-6 font-medium">
           Supports CSV, JSON, Excel files
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -167,173 +202,306 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{paddingTop: '120px', paddingBottom: '48px'}}>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Backend Status Warning */}
-        {backendAvailable === false && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <AlertCircle className="h-5 w-5 text-red-400" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">
-                  Backend Not Available
-                </h3>
-                <p className="mt-1 text-sm text-red-700">
-                  The Flask server is not running. Please start it by running 
-                  <code className="mx-1 px-1 bg-red-100 rounded">python app.py</code> 
-                  in the my_flask_app directory.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="px-8 py-6 border-b border-gray-200">
-            <h1 className="text-3xl font-bold text-gray-900">Upload Your Dataset</h1>
-            <p className="text-lg text-gray-600 mt-2">
+    <div className="min-h-screen relative overflow-hidden bg-gray-900">
+      {/* Background Elements */}
+      <ParticleBackground />
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-cyan-900 opacity-20" />
+      <div className="absolute inset-0 geometric-pattern opacity-30" />
+      
+      {/* Main Container */}
+      <div className="relative z-10 min-h-screen" style={{paddingTop: '50px', paddingBottom: '48px'}}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header Section */}
+          <motion.div
+            className="text-center mb-12"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <motion.div
+              className="flex justify-center mb-6"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1, delay: 0.2 }}
+            >
+              <motion.div
+                className="relative"
+                animate={{ 
+                  rotateY: 360,
+                  scale: [1, 1.1, 1]
+                }}
+                transition={{ 
+                  rotateY: { duration: 8, repeat: Infinity, ease: "linear" },
+                  scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                }}
+                style={{
+                  filter: 'drop-shadow(0 0 20px rgba(0, 245, 255, 0.5))'
+                }}
+              >
+                <Brain className="h-20 w-20 text-cyan-400" />
+              </motion.div>
+            </motion.div>
+            
+            <h1 className="text-5xl sm:text-6xl font-black leading-tight tracking-tight mb-6">
+              <span className="block text-white mb-2">Upload Your</span>
+              <span 
+                className="block"
+                style={{
+                  background: 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Dataset
+              </span>
+            </h1>
+            <p className="text-xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
               Get started by uploading your data and telling us about its characteristics.
             </p>
-          </div>
-          
-          <form onSubmit={handleSubmit} className="p-8 space-y-8">
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <div className="flex">
-                  <AlertCircle className="h-5 w-5 text-red-400" />
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
+          </motion.div>
+
+          {/* Backend Status Warning */}
+          {backendAvailable === false && (
+            <motion.div 
+              className="mb-8 futuristic-card border-red-500/30 bg-red-900/20"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="flex items-start">
+                <AlertCircle className="h-6 w-6 text-red-400 mr-4 mt-1" />
+                <div>
+                  <h3 className="text-lg font-bold text-red-400 mb-2">
+                    Backend Not Available
+                  </h3>
+                  <p className="text-red-300">
+                    The Flask server is not running. Please start it by running 
+                    <code className="mx-1 px-2 py-1 bg-red-800/50 rounded text-red-200 font-mono">python app.py</code> 
+                    in the my_flask_app directory.
+                  </p>
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          <motion.div 
+            className="futuristic-card"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+          >
+            <div className="mb-8">
+              <div className="flex items-center mb-4">
+                <Sparkles className="h-8 w-8 text-cyan-400 mr-3" />
+                <h2 className="text-3xl font-bold text-white">Dataset Upload</h2>
+              </div>
+              <p className="text-gray-300 text-lg">
+                Upload your dataset and configure the training parameters.
+              </p>
+            </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Error Message */}
+            {error && (
+              <motion.div 
+                className="futuristic-card border-red-500/30 bg-red-900/20"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex items-start">
+                  <AlertCircle className="h-6 w-6 text-red-400 mr-4 mt-1" />
+                  <div>
+                    <p className="text-red-300 text-lg">{error}</p>
+                  </div>
+                </div>
+              </motion.div>
             )}
 
             {/* File Upload Section */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              <label className="block text-lg font-bold text-white mb-6">
                 Select Your Dataset File
               </label>
               <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
               
               {selectedFile && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <motion.div 
+                  className="mt-6 futuristic-card bg-cyan-900/20 border-cyan-400/30"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
                   <div className="flex items-center">
-                    <FileText className="h-5 w-5 text-blue-600 mr-2" />
-                    <span className="text-sm font-medium text-blue-900">
-                      {selectedFile.name}
-                    </span>
-                    <span className="text-sm text-blue-700 ml-2">
-                      ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </span>
+                    <div className="p-2 rounded-lg bg-cyan-400/20 mr-4">
+                      <FileText className="h-6 w-6 text-cyan-400" />
+                    </div>
+                    <div>
+                      <span className="text-lg font-bold text-white block">
+                        {selectedFile.name}
+                      </span>
+                      <span className="text-cyan-300">
+                        ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* Upload Progress */}
               {isLoading && uploadProgress > 0 && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>Uploading...</span>
-                    <span>{uploadProgress}%</span>
+                <motion.div 
+                  className="mt-6"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="flex justify-between text-lg text-cyan-300 mb-3">
+                    <span className="font-medium">Uploading...</span>
+                    <span className="font-bold">{uploadProgress}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
+                  <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <motion.div 
+                      className="h-3 rounded-full"
+                      style={{ 
+                        background: 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+                        boxShadow: '0 0 10px rgba(0, 245, 255, 0.5)'
+                      }}
+                      initial={{ width: '0%' }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                    />
                   </div>
-                </div>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
 
             {/* Data Characteristics Section */}
-            <div className="grid md:grid-cols-2 gap-6">
+            <motion.div 
+              className="grid md:grid-cols-2 gap-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+            >
               {/* Data Labels Question */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+              <div className="futuristic-card">
+                <label className="block text-xl font-bold text-white mb-6">
                   Is your data labeled or unlabeled?
                 </label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
+                <div className="space-y-4">
+                  <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
                     <input
                       type="radio"
                       name="isLabeled"
                       value="labeled"
                       checked={isLabeled === 'labeled'}
                       onChange={(e) => setIsLabeled(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Labeled</span>
+                    <span className="ml-4 text-lg text-white font-medium">Labeled</span>
                   </label>
-                  <label className="flex items-center">
+                  <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
                     <input
                       type="radio"
                       name="isLabeled"
                       value="unlabeled"
                       checked={isLabeled === 'unlabeled'}
                       onChange={(e) => setIsLabeled(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Unlabeled</span>
+                    <span className="ml-4 text-lg text-white font-medium">Unlabeled</span>
                   </label>
                 </div>
               </div>
 
               {/* Data Type Question */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+              <div className="futuristic-card">
+                <label className="block text-xl font-bold text-white mb-6">
                   Is your data continuous or categorical?
                 </label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
+                <div className="space-y-4">
+                  <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
                     <input
                       type="radio"
                       name="dataType"
                       value="continuous"
                       checked={dataType === 'continuous'}
                       onChange={(e) => setDataType(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Continuous</span>
+                    <span className="ml-4 text-lg text-white font-medium">Continuous</span>
                   </label>
-                  <label className="flex items-center">
+                  <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
                     <input
                       type="radio"
                       name="dataType"
                       value="categorical"
                       checked={dataType === 'categorical'}
                       onChange={(e) => setDataType(e.target.value)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Categorical</span>
+                    <span className="ml-4 text-lg text-white font-medium">Categorical</span>
                   </label>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Submit Button */}
-            <div className="flex justify-end">
-              <button
+            <motion.div 
+              className="flex justify-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+            >
+              <motion.button
                 type="submit"
                 disabled={!selectedFile || !isLabeled || !dataType || isLoading}
-                className={`px-8 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
+                className={`px-12 py-5 text-xl font-bold rounded-xl transition-all duration-300 ${
                   !selectedFile || !isLabeled || !dataType || isLoading
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed border border-gray-500'
+                    : 'text-white border border-cyan-400/30'
                 }`}
+                style={{
+                  background: !selectedFile || !isLabeled || !dataType || isLoading 
+                    ? 'rgba(75, 85, 99, 0.5)' 
+                    : 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+                  boxShadow: !selectedFile || !isLabeled || !dataType || isLoading
+                    ? 'none'
+                    : '0 8px 32px rgba(0, 245, 255, 0.3)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.8px'
+                }}
+                whileHover={!selectedFile || !isLabeled || !dataType || isLoading ? {} : { 
+                  scale: 1.05,
+                  boxShadow: '0 0 30px rgba(0, 245, 255, 0.4)'
+                }}
+                whileTap={!selectedFile || !isLabeled || !dataType || isLoading ? {} : { scale: 0.98 }}
               >
                 {isLoading ? (
                   <span className="flex items-center">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <Loader2 className="h-6 w-6 mr-3" />
+                    </motion.div>
                     Processing...
                   </span>
                 ) : (
-                  'Process Dataset'
+                  <span className="flex items-center">
+                    <Brain className="h-6 w-6 mr-3" />
+                    Process Dataset
+                  </span>
                 )}
-              </button>
-            </div>
+              </motion.button>
+            </motion.div>
           </form>
+          </motion.div>
         </div>
       </div>
     </div>

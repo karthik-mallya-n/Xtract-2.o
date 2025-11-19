@@ -34,8 +34,21 @@ class MLCore:
         
         # Configure Google AI Studio
         genai.configure(api_key=self.google_api_key)
+        
+        # Generation configuration for complete responses
+        self.generation_config = {
+            "temperature": 0.1,
+            "top_p": 0.8,
+            "top_k": 40,
+            "max_output_tokens": 8192,  # Maximum to prevent truncation
+            "response_mime_type": "text/plain",
+        }
+        
         # Use the best available stable model for Google AI Studio
-        self.genai_model = genai.GenerativeModel('models/gemini-2.5-flash')
+        self.genai_model = genai.GenerativeModel(
+            model_name='models/gemini-2.5-flash',
+            generation_config=self.generation_config
+        )
         
         # Initialize the advanced model trainer
         self.advanced_trainer = AdvancedModelTrainer(base_models_dir="models")
@@ -199,6 +212,7 @@ Provide practical, actionable recommendations based on the actual data character
         Returns:
             dict: LLM response with model recommendations
         """
+        
         try:
             print(f"\n🤖 MAKING REQUEST TO GOOGLE AI STUDIO")
             print("="*80)
@@ -308,10 +322,14 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             print(f"📤 SENDING REQUEST TO GEMINI 2.5 FLASH")
             print(f"📋 Prompt length: {len(prompt)} characters")
-            print(f"🔗 Model: Gemini 2.5 Flash")
+            print(f"🔗 Model: Gemini 2.5 Flash (Optimized for Complete Responses)")
+            print(f"📏 Max Output Tokens: {self.generation_config['max_output_tokens']}")
             
-            # Make the request to Gemini
-            response = self.genai_model.generate_content(prompt)
+            # Make the request to Gemini with full configuration
+            response = self.genai_model.generate_content(
+                prompt,
+                generation_config=self.generation_config
+            )
             raw_response = response.text
             
             print(f"\n📥 RECEIVED RESPONSE FROM GOOGLE AI STUDIO:")
@@ -333,17 +351,89 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
 
             # Try to parse JSON response
             try:
-                # Clean the response (remove markdown code blocks if present)
-                cleaned_response = raw_response
+                # Clean and parse the response
+                cleaned_response = raw_response.strip()
+                
+                # Check if response seems incomplete (no closing brace)
+                if not cleaned_response.endswith('}'):
+                    print(f"⚠️ Response appears incomplete - missing closing brace")
+                    print(f"📏 Response ends with: '...{cleaned_response[-50:]}'")
+                
+                # Remove markdown code blocks if present
                 if "```json" in cleaned_response:
-                    cleaned_response = cleaned_response.split("```json")[1]
-                    if "```" in cleaned_response:
-                        cleaned_response = cleaned_response.split("```")[0]
+                    if cleaned_response.count("```") >= 2:
+                        # Extract content between ```json and ```
+                        start_idx = cleaned_response.find("```json") + 7
+                        end_idx = cleaned_response.find("```", start_idx)
+                        if end_idx != -1:
+                            cleaned_response = cleaned_response[start_idx:end_idx].strip()
+                    else:
+                        # Handle incomplete markdown - remove ```json from the start
+                        cleaned_response = cleaned_response.replace("```json", "").strip()
+                        # Remove any trailing ``` if present
+                        if "```" in cleaned_response:
+                            cleaned_response = cleaned_response.split("```")[0]
                 elif "```" in cleaned_response:
                     # Handle cases with just ```
                     parts = cleaned_response.split("```")
                     if len(parts) >= 3:
                         cleaned_response = parts[1]
+                
+                # Try to fix incomplete JSON by adding missing parts
+                if cleaned_response and not cleaned_response.endswith('}'):
+                    print(f"🔧 Attempting to fix incomplete JSON...")
+                    
+                    # Fix incomplete expected_accuracy field (most common truncation)
+                    if '"expected_accuracy": "' in cleaned_response:
+                        # Find the last occurrence
+                        last_accuracy_idx = cleaned_response.rfind('"expected_accuracy": "')
+                        if last_accuracy_idx != -1:
+                            remaining_text = cleaned_response[last_accuracy_idx + 21:]  # After '"expected_accuracy": "'
+                            # Check if the string is incomplete (no closing quote)
+                            if '"' not in remaining_text or (remaining_text.find('"') == -1):
+                                # Complete the accuracy field
+                                if '%' not in remaining_text:
+                                    cleaned_response += '%"'
+                                else:
+                                    cleaned_response += '"'
+                                print(f"🔧 Fixed incomplete accuracy field")
+                    
+                    # Fix incomplete reasoning field
+                    if '"reasoning": "' in cleaned_response:
+                        reasoning_count = cleaned_response.count('"reasoning": "')
+                        quote_after_reasoning = cleaned_response.count('"reasoning": "') 
+                        # Count how many reasoning fields are properly closed
+                        closed_reasoning = cleaned_response.count('"reasoning":')
+                        if reasoning_count > closed_reasoning:
+                            cleaned_response += '"'
+                            print(f"🔧 Fixed incomplete reasoning field")
+                    
+                    # Remove incomplete trailing entry if it exists
+                    lines = cleaned_response.split('\n')
+                    if lines and not lines[-1].strip().endswith(('}', ']', '"')):
+                        # Remove the incomplete last line
+                        lines = lines[:-1]
+                        cleaned_response = '\n'.join(lines)
+                        print(f"🔧 Removed incomplete final entry")
+                    
+                    # Ensure proper array closure
+                    if '"recommended_models": [' in cleaned_response and not cleaned_response.count('[') == cleaned_response.count(']'):
+                        if not cleaned_response.rstrip().endswith(']'):
+                            # Close the array properly
+                            if cleaned_response.rstrip().endswith(','):
+                                cleaned_response = cleaned_response.rstrip()[:-1]  # Remove trailing comma
+                            cleaned_response += '\n  ]'
+                            print(f"🔧 Fixed incomplete array")
+                    
+                    # Count opening vs closing braces to determine how many we need
+                    open_braces = cleaned_response.count('{')
+                    close_braces = cleaned_response.count('}')
+                    missing_braces = open_braces - close_braces
+                    
+                    if missing_braces > 0:
+                        # Add missing closing braces
+                        cleaned_response += '}' * missing_braces
+                        print(f"🔧 Added {missing_braces} missing closing brace(s)")
                 
                 parsed_recommendations = json.loads(cleaned_response.strip())
                 

@@ -1,25 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { 
-  BarChart, 
   Brain, 
   TrendingUp, 
   Target, 
-  Activity, 
   Zap, 
-  Info, 
   Loader2, 
   AlertCircle,
   CheckCircle,
   Settings,
-  Download,
-  BarChart3,
-  PieChart,
-  LineChart
+  BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import ParticleBackground from '@/components/ParticleBackground';
+
+// Types
+interface TrainingResults {
+  model_name?: string;
+  main_score: number;
+  threshold_met: boolean;
+  performance?: {
+    accuracy: number;
+    cv_accuracy: number;
+    classification_report?: Record<string, {
+      precision: number;
+      recall: number;
+      'f1-score': number;
+      support: number;
+    }>;
+  };
+  feature_info?: {
+    feature_names: string[];
+  };
+  model_params?: Record<string, string | number | boolean>;
+}
 
 /**
  * Tab Navigation Component
@@ -31,34 +48,36 @@ interface TabNavigationProps {
 
 function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   return (
-    <div className="border-b border-gray-200 mb-8">
+    <div className="border-b border-gray-600 mb-8">
       <nav className="-mb-px flex space-x-8">
-        <button
+        <motion.button
           onClick={() => onTabChange('visualization')}
-          className={`py-2 px-1 border-b-2 font-medium text-sm ${
+          className={`py-3 px-2 border-b-2 font-bold text-lg transition-all duration-200 ${
             activeTab === 'visualization'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-cyan-400 text-cyan-400'
+              : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
           }`}
+          whileHover={{ y: -2 }}
         >
           <div className="flex items-center">
-            <BarChart3 className="h-5 w-5 mr-2" />
+            <BarChart3 className="h-6 w-6 mr-3" />
             Training Results & Visualization
           </div>
-        </button>
-        <button
+        </motion.button>
+        <motion.button
           onClick={() => onTabChange('prediction')}
-          className={`py-2 px-1 border-b-2 font-medium text-sm ${
+          className={`py-3 px-2 border-b-2 font-bold text-lg transition-all duration-200 ${
             activeTab === 'prediction'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-cyan-400 text-cyan-400'
+              : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
           }`}
+          whileHover={{ y: -2 }}
         >
           <div className="flex items-center">
-            <Brain className="h-5 w-5 mr-2" />
+            <Brain className="h-6 w-6 mr-3" />
             Make Predictions
           </div>
-        </button>
+        </motion.button>
       </nav>
     </div>
   );
@@ -85,22 +104,28 @@ function MetricCard({ title, value, icon: Icon, color, format = 'text', descript
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+    <motion.div 
+      className="futuristic-card hover:border-cyan-400/50"
+      whileHover={{ y: -5 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+    >
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className={`text-3xl font-bold ${color} mt-2`}>
+          <p className="text-lg font-bold text-gray-300">{title}</p>
+          <p className={`text-4xl font-black mt-3 ${color}`}>
             {formatValue(value)}
           </p>
           {description && (
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
+            <p className="text-sm text-cyan-400 mt-2 font-medium">{description}</p>
           )}
         </div>
-        <div className={`p-3 rounded-full ${color.replace('text-', 'bg-').replace('-600', '-100')}`}>
-          <Icon className={`h-8 w-8 ${color}`} />
+        <div className="p-4 rounded-xl bg-gray-800/50 border border-gray-600">
+          <Icon className={`h-10 w-10 ${color}`} />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -108,7 +133,12 @@ function MetricCard({ title, value, icon: Icon, color, format = 'text', descript
  * Classification Report Component
  */
 interface ClassificationReportProps {
-  classificationReport: Record<string, any>;
+  classificationReport: Record<string, {
+    precision: number;
+    recall: number;
+    'f1-score': number;
+    support: number;
+  }>;
 }
 
 function ClassificationReport({ classificationReport }: ClassificationReportProps) {
@@ -117,82 +147,72 @@ function ClassificationReport({ classificationReport }: ClassificationReportProp
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-      <div className="flex items-center mb-6">
-        <Target className="h-6 w-6 text-green-600 mr-3" />
-        <h3 className="text-xl font-bold text-gray-900">Classification Report</h3>
+    <motion.div 
+      className="futuristic-card"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.2 }}
+    >
+      <div className="flex items-center mb-8">
+        <div className="p-3 rounded-xl bg-green-900/30 border border-green-500/30 mr-4">
+          <Target className="h-8 w-8 text-green-400" />
+        </div>
+        <h3 className="text-2xl font-bold text-white">Classification Report</h3>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <table className="min-w-full">
+          <thead>
+            <tr className="border-b border-gray-600">
+              <th className="px-6 py-4 text-left text-lg font-bold text-cyan-400 uppercase tracking-wider">
                 Class
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-lg font-bold text-cyan-400 uppercase tracking-wider">
                 Precision
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-lg font-bold text-cyan-400 uppercase tracking-wider">
                 Recall
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-lg font-bold text-cyan-400 uppercase tracking-wider">
                 F1-Score
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-lg font-bold text-cyan-400 uppercase tracking-wider">
                 Support
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {classes.map((className, index) => {
-              const classData = classificationReport[className];
-              return (
-                <tr key={className} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {className}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {(classData.precision * 100).toFixed(1)}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {(classData.recall * 100).toFixed(1)}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {(classData['f1-score'] * 100).toFixed(1)}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {classData.support}
-                  </td>
-                </tr>
-              );
-            })}
+          <tbody className="divide-y divide-gray-700">
+            {classes.map((className) => (
+              <tr key={className} className="hover:bg-gray-800/30 transition-colors duration-200">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-lg font-bold text-white">{className}</span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-lg font-medium text-green-400">
+                    {(classificationReport[className]?.precision * 100 || 0).toFixed(1)}%
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-lg font-medium text-cyan-400">
+                    {(classificationReport[className]?.recall * 100 || 0).toFixed(1)}%
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-lg font-medium text-purple-400">
+                    {(classificationReport[className]?.['f1-score'] * 100 || 0).toFixed(1)}%
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-lg font-medium text-gray-300">
+                    {classificationReport[className]?.support || 0}
+                  </span>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-
-      {/* Summary Statistics */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-blue-50 rounded-lg p-4">
-          <div className="text-sm font-medium text-blue-900">Overall Accuracy</div>
-          <div className="text-2xl font-bold text-blue-600">
-            {(classificationReport.accuracy * 100).toFixed(1)}%
-          </div>
-        </div>
-        <div className="bg-green-50 rounded-lg p-4">
-          <div className="text-sm font-medium text-green-900">Macro Average F1</div>
-          <div className="text-2xl font-bold text-green-600">
-            {(classificationReport['macro avg']['f1-score'] * 100).toFixed(1)}%
-          </div>
-        </div>
-        <div className="bg-purple-50 rounded-lg p-4">
-          <div className="text-sm font-medium text-purple-900">Weighted Average F1</div>
-          <div className="text-2xl font-bold text-purple-600">
-            {(classificationReport['weighted avg']['f1-score'] * 100).toFixed(1)}%
-          </div>
-        </div>
-      </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -200,142 +220,75 @@ function ClassificationReport({ classificationReport }: ClassificationReportProp
  * Model Parameters Component
  */
 interface ModelParametersProps {
-  bestParams: Record<string, any>;
+  modelParams: Record<string, string | number | boolean>;
   modelName: string;
 }
 
-function ModelParameters({ bestParams, modelName }: ModelParametersProps) {
+function ModelParameters({ modelParams, modelName }: ModelParametersProps) {
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-      <div className="flex items-center mb-6">
-        <Settings className="h-6 w-6 text-blue-600 mr-3" />
-        <h3 className="text-xl font-bold text-gray-900">Optimized Parameters</h3>
+    <motion.div 
+      className="futuristic-card"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.4 }}
+    >
+      <div className="flex items-center mb-8">
+        <div className="p-3 rounded-xl bg-purple-900/30 border border-purple-500/30 mr-4">
+          <Settings className="h-8 w-8 text-purple-400" />
+        </div>
+        <h3 className="text-2xl font-bold text-white">Model Configuration</h3>
       </div>
 
-      <div className="mb-4">
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-          {modelName}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {Object.entries(bestParams).map(([key, value]) => {
-          // Clean up parameter names for display
-          const displayName = key.replace('model__', '').replace('_', ' ');
-          const displayValue = value === null ? 'None' : value.toString();
-
-          return (
-            <div key={key} className="bg-gray-50 rounded-lg p-4">
-              <div className="text-sm font-medium text-gray-700 capitalize">
-                {displayName}
-              </div>
-              <div className="text-lg font-semibold text-gray-900 mt-1">
-                {displayValue}
-              </div>
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <h4 className="text-lg font-bold text-cyan-400 mb-4 uppercase tracking-wider">
+            Algorithm Details
+          </h4>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center py-2 border-b border-gray-700">
+              <span className="text-gray-300 font-medium">Model Type</span>
+              <span className="text-white font-bold">{modelName.replace(/[-_]/g, ' ')}</span>
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Input Field Component for Predictions
- */
-interface InputFieldProps {
-  label: string;
-  name: string;
-  type?: string;
-  step?: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-}
-
-function InputField({ label, name, type = 'text', step, placeholder, value, onChange, required = false }: InputFieldProps) {
-  return (
-    <div className="mb-4">
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <input
-        type={type}
-        step={step}
-        id={name}
-        name={name}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-black shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        required={required}
-      />
-    </div>
-  );
-}
-
-/**
- * Prediction Result Component
- */
-interface PredictionResultProps {
-  prediction: string;
-  confidence: number;
-  classificationReport?: Record<string, any>;
-}
-
-function PredictionResult({ prediction, confidence, classificationReport }: PredictionResultProps) {
-  return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-      <div className="flex items-center mb-4">
-        <Zap className="h-6 w-6 text-blue-600 mr-2" />
-        <h3 className="text-lg font-bold text-blue-900">Prediction Result</h3>
-      </div>
-      
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-blue-700 mb-1">
-            Predicted Class
-          </label>
-          <div className="text-3xl font-bold text-blue-900">
-            {prediction}
-          </div>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-blue-700 mb-1">
-            Confidence Level
-          </label>
-          <div className="text-xl font-semibold text-blue-800 mb-2">
-            {confidence.toFixed(1)}%
-          </div>
-          <div className="w-full bg-blue-200 rounded-full h-3">
-            <div 
-              className="bg-blue-600 h-3 rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(confidence, 100)}%` }}
-            />
+            {Object.entries(modelParams).slice(0, 5).map(([key, value]) => (
+              <div key={key} className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-gray-300 font-medium capitalize">{key.replace(/[-_]/g, ' ')}</span>
+                <span className="text-white font-bold">
+                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {classificationReport && (
-          <div className="mt-4 text-xs text-blue-600">
-            <Info className="h-4 w-4 inline mr-1" />
-            Based on model trained with {(classificationReport.accuracy * 100).toFixed(1)}% accuracy
+        <div>
+          <h4 className="text-lg font-bold text-cyan-400 mb-4 uppercase tracking-wider">
+            Training Info
+          </h4>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center py-2 border-b border-gray-700">
+              <span className="text-gray-300 font-medium">Random State</span>
+              <span className="text-white font-bold">{modelParams.random_state || 'N/A'}</span>
+            </div>
+            {Object.entries(modelParams).slice(5, 10).map(([key, value]) => (
+              <div key={key} className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-gray-300 font-medium capitalize">{key.replace(/[-_]/g, ' ')}</span>
+                <span className="text-white font-bold">
+                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-/**
- * Main Results Page Component
- */
-export default function ResultsPage() {
-  const router = useRouter();
+// Component that uses useSearchParams - needs to be wrapped in Suspense
+function ResultsPageContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'visualization' | 'prediction'>('visualization');
-  const [trainingResults, setTrainingResults] = useState<any>(null);
+  const [trainingResults, setTrainingResults] = useState<TrainingResults | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
@@ -356,14 +309,14 @@ export default function ResultsPage() {
   }>>([]);
 
   // Get feature names from training results
-  const getFeatureNames = (): string[] => {
+  const getFeatureNames = useCallback((): string[] => {
     if (trainingResults?.feature_info?.feature_names) {
-      return trainingResults.feature_info.feature_names;
+      return trainingResults.feature_info.feature_names as string[];
     }
     
     // Fallback to Iris features for backward compatibility
     return ['SepalLengthCm', 'SepalWidthCm', 'PetalLengthCm', 'PetalWidthCm'];
-  };
+  }, [trainingResults]);
 
   // Initialize form data when training results change
   useEffect(() => {
@@ -375,7 +328,7 @@ export default function ResultsPage() {
       });
       setFormData(initialFormData);
     }
-  }, [trainingResults]);
+  }, [trainingResults, getFeatureNames]);
 
   // Load training results from URL params or localStorage
   useEffect(() => {
@@ -391,51 +344,20 @@ export default function ResultsPage() {
         }
 
         // Fallback to localStorage
-        const storedResults = localStorage.getItem('trainingResults');
-        if (storedResults) {
-          setTrainingResults(JSON.parse(storedResults));
+        const savedResults = localStorage.getItem('trainingResults');
+        if (savedResults) {
+          const results = JSON.parse(savedResults);
+          setTrainingResults(results);
           setIsLoading(false);
           return;
         }
 
-        // If no results found, create mock data for demonstration
-        setError('No training results found. Using demo data.');
-        const mockResults = {
-          success: true,
-          model_folder: 'models/demo_20251108_111734',
-          model_name: 'random-forest-classifier',
-          main_score: 1.0,
-          score_name: 'Accuracy',
-          problem_type: 'classification',
-          threshold_met: true,
-          feature_info: {
-            feature_names: ['SepalLengthCm', 'SepalWidthCm', 'PetalLengthCm', 'PetalWidthCm'],
-            target_column: 'Species',
-            problem_type: 'classification'
-          },
-          performance: {
-            accuracy: 1.0,
-            cv_accuracy: 0.9133,
-            cv_std: 0.0618,
-            classification_report: {
-              'Iris-setosa': { precision: 1.0, recall: 1.0, 'f1-score': 1.0, support: 10.0 },
-              'Iris-versicolor': { precision: 1.0, recall: 1.0, 'f1-score': 1.0, support: 10.0 },
-              'Iris-virginica': { precision: 1.0, recall: 1.0, 'f1-score': 1.0, support: 10.0 },
-              'accuracy': 1.0,
-              'macro avg': { precision: 1.0, recall: 1.0, 'f1-score': 1.0, support: 30.0 },
-              'weighted avg': { precision: 1.0, recall: 1.0, 'f1-score': 1.0, support: 30.0 }
-            }
-          },
-          best_params: {
-            'model__max_depth': null,
-            'model__min_samples_leaf': 1,
-            'model__min_samples_split': 2,
-            'model__n_estimators': 150
-          }
-        };
-        setTrainingResults(mockResults);
+        // If no results found, set error
+        setError('No training results found. Please train a model first.');
         setIsLoading(false);
+
       } catch (err) {
+        console.error('Failed to load training results:', err);
         setError('Failed to load training results');
         setIsLoading(false);
       }
@@ -444,112 +366,105 @@ export default function ResultsPage() {
     loadTrainingResults();
   }, [searchParams]);
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (featureName: string, value: string) => {
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [featureName]: value
     }));
   };
 
   const handlePrediction = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check if at least one field is filled
-    const hasInput = Object.values(formData).some(value => value.trim() !== '');
-    if (!hasInput) {
-      alert('Please fill in at least one field');
-      return;
-    }
-
     setIsPredicting(true);
-    
-    try {
-      // Convert form data to numbers
-      const inputData: Record<string, number> = {};
-      Object.entries(formData).forEach(([key, value]) => {
-        if (value.trim() !== '') {
-          const numValue = parseFloat(value);
-          if (!isNaN(numValue)) {
-            inputData[key] = numValue;
-          }
-        }
-      });
+    setError('');
 
-      // Real API call to Flask backend
-      const response = await fetch('http://localhost:5000/api/predict', {
+    try {
+      // Validate all fields are filled
+      const featureNames = getFeatureNames();
+      const missingFields = featureNames.filter(name => !formData[name] || formData[name].trim() === '');
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Please fill in all fields: ${missingFields.join(', ')}`);
+      }
+
+      // Convert form data to feature array in the correct order
+      const features = featureNames.map(name => parseFloat(formData[name]));
+      
+      // Validate numeric values
+      if (features.some(isNaN)) {
+        throw new Error('All inputs must be valid numbers');
+      }
+
+      const response = await fetch('/api/predict', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          file_id: 'current_model', // Use current trained model
-          input_data: inputData
-        })
+          features: features
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`API call failed: ${response.status}`);
+        throw new Error('Prediction request failed');
       }
 
       const apiResult = await response.json();
       
-      if (!apiResult.success) {
-        throw new Error(apiResult.error || 'Prediction failed');
-      }
-
       // Use real prediction from the model
-      let predictedClass = apiResult.prediction || 'Unknown';
-      let confidence = apiResult.confidence || 95; // Use model confidence or high default
-      
-      // For regression models, round to reasonable decimal places
-      if (apiResult.feature_info?.problem_type === 'regression') {
-        const numPrediction = parseFloat(predictedClass);
-        if (!isNaN(numPrediction)) {
-          predictedClass = numPrediction.toFixed(3);
-        }
-      }
+      const predictedClass = apiResult.prediction || 'Unknown';
+      const confidence = apiResult.confidence || 95;
 
-      const result = {
+      setPrediction({
         value: predictedClass,
         confidence: confidence
-      };
+      });
 
-      setPrediction(result);
-      
       // Add to history
-      setPredictionHistory(prev => [{
+      const newHistoryItem = {
         inputs: { ...formData },
         result: predictedClass,
         confidence: confidence,
         timestamp: new Date()
-      }, ...prev.slice(0, 9)]);
+      };
       
+      setPredictionHistory(prev => [newHistoryItem, ...prev.slice(0, 4)]); // Keep only last 5
+
     } catch (err) {
+      console.error('Prediction failed:', err);
       setError('Failed to make prediction');
     } finally {
       setIsPredicting(false);
     }
   };
 
-  const handleReset = () => {
-    const featureNames = getFeatureNames();
-    const resetFormData: Record<string, string> = {};
-    featureNames.forEach(feature => {
-      resetFormData[feature] = '';
-    });
-    setFormData(resetFormData);
-    setPrediction(null);
-  };
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-6" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+      <div className="min-h-screen relative overflow-hidden bg-gray-900 flex items-center justify-center">
+        {/* Background Elements */}
+        <ParticleBackground />
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-cyan-900 opacity-20" />
+        <div className="absolute inset-0 geometric-pattern opacity-30" />
+        
+        {/* Loading Content */}
+        <div className="relative z-10 text-center">
+          <motion.div
+            className="flex justify-center mb-8"
+            animate={{ 
+              rotateY: 360,
+              scale: [1, 1.2, 1]
+            }}
+            transition={{ 
+              rotateY: { duration: 2, repeat: Infinity, ease: "linear" },
+              scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+            }}
+          >
+            <Brain className="h-24 w-24 text-cyan-400" style={{filter: 'drop-shadow(0 0 20px rgba(0, 245, 255, 0.5))'}} />
+          </motion.div>
+          <h2 className="text-4xl font-black text-white mb-6">
             Loading Training Results
           </h2>
-          <p className="text-lg text-gray-600">
+          <p className="text-xl text-gray-300 max-w-md mx-auto">
             Please wait while we prepare your model results...
           </p>
         </div>
@@ -558,287 +473,399 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{paddingTop:'30px', paddingBottom: '48px'}}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle className="h-10 w-10 text-green-600" />
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Training Complete! 🎉
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Your {trainingResults?.model_name || 'machine learning'} model has been successfully trained. 
-            Explore the results and start making predictions below.
-          </p>
-        </div>
+    <div className="min-h-screen relative overflow-hidden bg-gray-900">
+      {/* Background Elements */}
+      <ParticleBackground />
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-cyan-900 opacity-20" />
+      <div className="absolute inset-0 geometric-pattern opacity-30" />
+      
+      {/* Main Container */}
+      <div className="relative z-10 min-h-screen" style={{paddingTop:'80px', paddingBottom: '48px'}}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <motion.div 
+            className="text-center mb-12"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <motion.div
+              className="flex justify-center mb-6"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1, delay: 0.2 }}
+            >
+              <motion.div
+                className="w-20 h-20 rounded-full flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(0, 245, 255, 0.2) 0%, rgba(153, 69, 255, 0.2) 100%)',
+                  border: '2px solid rgba(0, 245, 255, 0.3)',
+                  boxShadow: '0 0 30px rgba(0, 245, 255, 0.3)'
+                }}
+                animate={{ 
+                  rotateY: 360,
+                  scale: [1, 1.1, 1]
+                }}
+                transition={{ 
+                  rotateY: { duration: 8, repeat: Infinity, ease: "linear" },
+                  scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                }}
+              >
+                <CheckCircle className="h-12 w-12 text-cyan-400" />
+              </motion.div>
+            </motion.div>
+            <h1 className="text-5xl sm:text-6xl font-black text-white mb-6">
+              <span className="block mb-2">Training</span>
+              <span 
+                className="block"
+                style={{
+                  background: 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Complete! 🎉
+              </span>
+            </h1>
+            <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
+              Your {trainingResults?.model_name || 'machine learning'} model has been successfully trained. 
+              Explore the results and start making predictions below.
+            </p>
+          </motion.div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="max-w-4xl mx-auto mb-8">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
-                <div className="text-sm text-yellow-800">
-                  <p className="font-medium mb-1">Notice</p>
-                  <p>{error}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab Navigation */}
-        <div className="max-w-6xl mx-auto">
-          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
-
-          {/* Visualization Tab */}
-          {activeTab === 'visualization' && trainingResults && (
-            <div className="space-y-8">
-              {/* Performance Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard
-                  title="Test Accuracy"
-                  value={trainingResults.performance?.accuracy || trainingResults.main_score}
-                  icon={TrendingUp}
-                  color="text-blue-600"
-                  format="percentage"
-                  description="Performance on test data"
-                />
-                <MetricCard
-                  title="CV Accuracy"
-                  value={trainingResults.performance?.cv_accuracy || trainingResults.main_score * 0.9}
-                  icon={Target}
-                  color="text-green-600"
-                  format="percentage"
-                  description="Cross-validation score"
-                />
-                <MetricCard
-                  title="Model Type"
-                  value={trainingResults.model_name?.replace(/[-_]/g, ' ')?.replace(/classifier|regressor/i, '') || 'Random Forest'}
-                  icon={Brain}
-                  color="text-purple-600"
-                  description="Algorithm used"
-                />
-                <MetricCard
-                  title="Status"
-                  value={trainingResults.threshold_met ? "✅ Excellent" : "⚠️ Good"}
-                  icon={CheckCircle}
-                  color={trainingResults.threshold_met ? "text-green-600" : "text-yellow-600"}
-                  description={trainingResults.threshold_met ? "90%+ accuracy achieved" : "Below 90% accuracy"}
-                />
-              </div>
-
-              {/* Classification Report */}
-              {trainingResults.performance?.classification_report && (
-                <ClassificationReport 
-                  classificationReport={trainingResults.performance.classification_report} 
-                />
-              )}
-
-              {/* Model Parameters */}
-              {trainingResults.best_params && (
-                <ModelParameters 
-                  bestParams={trainingResults.best_params}
-                  modelName={trainingResults.model_name || 'Model'}
-                />
-              )}
-
-              {/* Model Information Card */}
-              <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                <div className="flex items-center mb-6">
-                  <Info className="h-6 w-6 text-blue-600 mr-3" />
-                  <h3 className="text-xl font-bold text-gray-900">Model Information</h3>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div>
-                    <div className="text-sm font-medium text-gray-700">Model Folder</div>
-                    <div className="text-sm text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded mt-1">
-                      {trainingResults.model_folder || 'models/latest'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-700">Problem Type</div>
-                    <div className="text-sm text-gray-600 mt-1 capitalize">
-                      {trainingResults.problem_type || 'Classification'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-700">Score Metric</div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {trainingResults.score_name || 'Accuracy'}
-                    </div>
+          {/* Error Display */}
+          {error && (
+            <motion.div 
+              className="max-w-4xl mx-auto mb-8"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="futuristic-card border-yellow-500/30 bg-yellow-900/20">
+                <div className="flex items-start">
+                  <AlertCircle className="h-6 w-6 text-yellow-400 mr-4 mt-1" />
+                  <div className="text-lg text-yellow-300">
+                    <p className="font-bold mb-2">Notice</p>
+                    <p>{error}</p>
                   </div>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex justify-center space-x-4">
-                <button
-                  onClick={() => setActiveTab('prediction')}
-                  className="px-8 py-3 text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200 flex items-center"
-                >
-                  <Brain className="h-5 w-5 mr-2" />
-                  Start Making Predictions
-                </button>
-                <Link
-                  href="/upload"
-                  className="px-8 py-3 text-lg font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200 flex items-center"
-                >
-                  Train New Model
-                </Link>
-              </div>
-            </div>
+            </motion.div>
           )}
 
-          {/* Prediction Tab */}
-          {activeTab === 'prediction' && (
-            <div className="grid lg:grid-cols-3 gap-8">
-              {/* Input Form */}
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200">
-                  <div className="flex items-center mb-6">
-                    <Brain className="h-6 w-6 text-blue-600 mr-3" />
-                    <h2 className="text-2xl font-bold text-gray-900">Make a Prediction</h2>
-                  </div>
-                  
-                 
+          {/* Tab Navigation */}
+          <div className="max-w-6xl mx-auto">
+            <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
-                  <form onSubmit={handlePrediction} className="space-y-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {getFeatureNames().map((featureName) => {
-                        // Create a user-friendly label from the feature name
-                        const label = featureName
-                          .replace(/([A-Z])/g, ' $1') // Add spaces before capital letters
-                          .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
-                          .replace(/Cm/g, '(cm)') // Replace Cm with (cm)
-                          .replace(/Id/g, 'ID'); // Replace Id with ID
-                        
-                        return (
-                          <InputField
-                            key={featureName}
-                            label={label}
-                            name={featureName}
-                            type="number"
-                            step="0.1"
-                            placeholder={`Enter ${label.toLowerCase()}`}
-                            value={formData[featureName] || ''}
-                            onChange={(value) => handleInputChange(featureName, value)}
-                          />
-                        );
-                      })}
+            {/* Visualization Tab */}
+            {activeTab === 'visualization' && trainingResults && (
+              <motion.div 
+                className="space-y-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                  <MetricCard
+                    title="Test Accuracy"
+                    value={trainingResults.performance?.accuracy || trainingResults.main_score}
+                    icon={TrendingUp}
+                    color="text-cyan-400"
+                    format="percentage"
+                    description="Performance on test data"
+                  />
+                  <MetricCard
+                    title="CV Accuracy"
+                    value={trainingResults.performance?.cv_accuracy || trainingResults.main_score * 0.9}
+                    icon={Target}
+                    color="text-green-400"
+                    format="percentage"
+                    description="Cross-validation score"
+                  />
+                  <MetricCard
+                    title="Model Type"
+                    value={trainingResults.model_name?.replace(/[-_]/g, ' ')?.replace(/classifier|regressor/i, '') || 'Random Forest'}
+                    icon={Brain}
+                    color="text-purple-400"
+                    description="Algorithm used"
+                  />
+                  <MetricCard
+                    title="Status"
+                    value={trainingResults.threshold_met ? "✅ Excellent" : "⚠️ Good"}
+                    icon={CheckCircle}
+                    color={trainingResults.threshold_met ? "text-green-400" : "text-yellow-400"}
+                    description={trainingResults.threshold_met ? "90%+ accuracy achieved" : "Below 90% accuracy"}
+                  />
+                </div>
+
+                {/* Detailed Results */}
+                <div className="grid lg:grid-cols-2 gap-8">
+                  {/* Classification Report */}
+                  {trainingResults.performance?.classification_report && (
+                    <ClassificationReport 
+                      classificationReport={trainingResults.performance.classification_report} 
+                    />
+                  )}
+
+                  {/* Model Parameters */}
+                  {trainingResults.model_params && (
+                    <ModelParameters 
+                      modelParams={trainingResults.model_params}
+                      modelName={trainingResults.model_name || 'Unknown'}
+                    />
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-center space-x-6 pt-8">
+                  <motion.button
+                    onClick={() => setActiveTab('prediction')}
+                    className="px-10 py-4 text-lg font-bold text-white rounded-xl transition-all duration-300 flex items-center"
+                    style={{
+                      background: 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+                      boxShadow: '0 0 30px rgba(0, 245, 255, 0.3)'
+                    }}
+                    whileHover={{ 
+                      scale: 1.05,
+                      boxShadow: '0 0 40px rgba(0, 245, 255, 0.5)'
+                    }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Brain className="h-6 w-6 mr-3" />
+                    Start Making Predictions
+                  </motion.button>
+                  <Link
+                    href="/upload"
+                    className="px-10 py-4 text-lg font-bold text-cyan-400 futuristic-card hover:border-cyan-400/50 transition-all duration-300 flex items-center"
+                  >
+                    Train New Model
+                  </Link>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Prediction Tab */}
+            {activeTab === 'prediction' && (
+              <motion.div 
+                className="grid lg:grid-cols-3 gap-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                {/* Input Form */}
+                <div className="lg:col-span-2">
+                  <motion.div 
+                    className="futuristic-card"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.6 }}
+                  >
+                    <div className="flex items-center mb-8">
+                      <div className="p-3 rounded-xl bg-blue-900/30 border border-blue-500/30 mr-4">
+                        <Brain className="h-8 w-8 text-blue-400" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-white">Make a Prediction</h2>
                     </div>
 
-                    <div className="flex space-x-4 pt-4">
-                      <button
+                    <form onSubmit={handlePrediction} className="space-y-6">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {getFeatureNames().map((featureName) => {
+                          // Create a user-friendly label from the feature name
+                          const label = featureName
+                            .replace(/([A-Z])/g, ' $1') // Add spaces before capital letters
+                            .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+                            .replace(/Cm/g, '(cm)') // Replace Cm with (cm)
+                            .replace(/Id/g, 'ID'); // Replace Id with ID
+                          
+                          return (
+                            <div key={featureName}>
+                              <label 
+                                htmlFor={featureName} 
+                                className="block text-lg font-bold text-gray-300 mb-3"
+                              >
+                                {label}
+                              </label>
+                              <input
+                                type="number"
+                                id={featureName}
+                                step="0.1"
+                                value={formData[featureName] || ''}
+                                onChange={(e) => handleInputChange(featureName, e.target.value)}
+                                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all duration-200"
+                                placeholder="Enter value..."
+                                required
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <motion.button
                         type="submit"
                         disabled={isPredicting}
-                        className={`px-8 py-3 text-base font-medium rounded-lg transition-colors duration-200 ${
-                          isPredicting
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
+                        className="w-full px-8 py-4 text-lg font-bold text-white rounded-xl transition-all duration-300 flex items-center justify-center"
+                        style={{
+                          background: isPredicting ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+                          boxShadow: isPredicting ? 'none' : '0 0 30px rgba(0, 245, 255, 0.3)'
+                        }}
+                        whileHover={!isPredicting ? { 
+                          scale: 1.02,
+                          boxShadow: '0 0 40px rgba(0, 245, 255, 0.5)'
+                        } : {}}
+                        whileTap={!isPredicting ? { scale: 0.98 } : {}}
                       >
                         {isPredicting ? (
-                          <span className="flex items-center">
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <>
+                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
                             Predicting...
-                          </span>
+                          </>
                         ) : (
-                          'Get Prediction'
+                          <>
+                            <Zap className="h-6 w-6 mr-3" />
+                            Make Prediction
+                          </>
                         )}
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={handleReset}
-                        className="px-6 py-3 text-base font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200"
-                      >
-                        Reset Form
-                      </button>
-                    </div>
-                  </form>
+                      </motion.button>
+                    </form>
+                  </motion.div>
                 </div>
-              </div>
 
-              {/* Results and History Sidebar */}
-              <div className="lg:col-span-1 space-y-6">
-                {/* Current Prediction */}
-                {prediction && (
-                  <PredictionResult
-                    prediction={prediction.value}
-                    confidence={prediction.confidence}
-                    classificationReport={trainingResults?.performance?.classification_report}
-                  />
-                )}
-
-                {/* Prediction History */}
-                {predictionHistory.length > 0 && (
-                  <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Predictions</h3>
-                    
-                    <div className="space-y-3">
-                      {predictionHistory.map((item, index) => (
-                        <div key={index} className="border border-gray-200 rounded-lg p-3 text-sm">
-                          <div className="font-medium text-gray-900 mb-1">
-                            {item.result}
+                {/* Results Sidebar */}
+                <div className="space-y-6">
+                  {/* Current Prediction */}
+                  {prediction && (
+                    <motion.div 
+                      className="futuristic-card"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      <div className="text-center">
+                        <div className="mb-6">
+                          <div 
+                            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+                            style={{
+                              background: 'linear-gradient(135deg, rgba(0, 245, 255, 0.2) 0%, rgba(153, 69, 255, 0.2) 100%)',
+                              border: '2px solid rgba(0, 245, 255, 0.3)',
+                              boxShadow: '0 0 20px rgba(0, 245, 255, 0.3)'
+                            }}
+                          >
+                            <CheckCircle className="h-10 w-10 text-cyan-400" />
                           </div>
-                          <div className="text-xs text-gray-500 mb-1">
-                            Confidence: {item.confidence.toFixed(1)}%
+                          <h3 className="text-xl font-bold text-white mb-2">Prediction Result</h3>
+                        </div>
+                        
+                        <div className="mb-6">
+                          <div 
+                            className="text-3xl font-black mb-2"
+                            style={{
+                              background: 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
+                              backgroundClip: 'text',
+                              WebkitBackgroundClip: 'text',
+                              WebkitTextFillColor: 'transparent',
+                            }}
+                          >
+                            {prediction.value}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {item.timestamp.toLocaleTimeString()}
+                          <div className="flex items-center justify-center">
+                            <span className="text-lg font-bold text-green-400">
+                              {prediction.confidence.toFixed(1)}% Confident
+                            </span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    </motion.div>
+                  )}
 
-                {/* Model Performance Summary */}
-                {trainingResults && (
-                  <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Model Performance</h3>
-                    
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <span className="font-medium text-gray-700">Algorithm:</span>
-                        <span className="ml-2 text-gray-600">
-                          {trainingResults.model_name?.replace(/[-_]/g, ' ')?.replace(/classifier|regressor/i, '') || 'Random Forest'}
-                        </span>
+                  {/* Prediction History */}
+                  {predictionHistory.length > 0 && (
+                    <motion.div 
+                      className="futuristic-card"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.6, delay: 0.2 }}
+                    >
+                      <h3 className="text-xl font-bold text-white mb-4">Recent Predictions</h3>
+                      <div className="space-y-3">
+                        {predictionHistory.map((item, index) => (
+                          <div 
+                            key={index} 
+                            className="p-4 bg-gray-800/30 rounded-xl border border-gray-600"
+                          >
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-lg font-bold text-cyan-400">{item.result}</span>
+                              <span className="text-sm text-green-400 font-medium">
+                                {item.confidence.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {item.timestamp.toLocaleTimeString()}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Accuracy:</span>
-                        <span className="ml-2 text-gray-600">
-                          {((trainingResults.performance?.accuracy || trainingResults.main_score) * 100).toFixed(1)}%
-                        </span>
+                    </motion.div>
+                  )}
+
+                  {/* Training Summary */}
+                  {trainingResults && (
+                    <motion.div 
+                      className="futuristic-card"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.6, delay: 0.4 }}
+                    >
+                      <h3 className="text-xl font-bold text-white mb-4">Training Summary</h3>
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-300">Accuracy:</span>
+                          <span className="ml-2 text-cyan-400 font-bold">
+                            {((trainingResults.performance?.accuracy || trainingResults.main_score) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-300">CV Score:</span>
+                          <span className="ml-2 text-gray-400">
+                            {((trainingResults.performance?.cv_accuracy || trainingResults.main_score * 0.9) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-300">Status:</span>
+                          <span className={`ml-2 font-medium ${
+                            trainingResults.threshold_met ? 'text-green-400' : 'text-yellow-400'
+                          }`}>
+                            {trainingResults.threshold_met ? '✅ Excellent' : '⚠️ Good'}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-700">CV Score:</span>
-                        <span className="ml-2 text-gray-600">
-                          {((trainingResults.performance?.cv_accuracy || trainingResults.main_score * 0.9) * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Status:</span>
-                        <span className={`ml-2 font-medium ${
-                          trainingResults.threshold_met ? 'text-green-600' : 'text-yellow-600'
-                        }`}>
-                          {trainingResults.threshold_met ? '✅ Excellent' : '⚠️ Good'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// Main exported component with Suspense boundary
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen relative overflow-hidden bg-gray-900 flex items-center justify-center">
+        <ParticleBackground />
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-cyan-900 opacity-20" />
+        <div className="relative z-10 text-center">
+          <Brain className="h-24 w-24 text-cyan-400 mx-auto mb-6" />
+          <h2 className="text-4xl font-black text-white mb-6">Loading...</h2>
+        </div>
+      </div>
+    }>
+      <ResultsPageContent />
+    </Suspense>
   );
 }

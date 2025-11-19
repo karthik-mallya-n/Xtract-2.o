@@ -6,6 +6,7 @@ Main API server handling file uploads, model recommendations, training, and pred
 import os
 import uuid
 import json
+import pandas as pd
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from flask import Flask, request, jsonify, send_from_directory
@@ -15,6 +16,7 @@ import joblib
 
 # Import our custom modules
 from core_ml import ml_core
+from visualization_engine import visualization_engine
 # Task system disabled due to import issues
 # from tasks import celery_app, train_model_task
 
@@ -1197,6 +1199,271 @@ def file_too_large(error):
         'success': False,
         'error': 'File too large. Maximum file size is 16MB.'
     }), 413
+
+@app.route('/api/visualizations/analyze', methods=['GET'])
+def analyze_dataset_for_visualizations():
+    """
+    Analyze dataset for available visualizations
+    
+    Query parameters:
+    - file_id: ID of uploaded file (optional for testing)
+    
+    Returns:
+    - JSON response with column information and available visualization types
+    """
+    try:
+        print(f"📊 Analyzing dataset for visualizations...")
+        file_id = request.args.get('file_id')
+        print(f"🔍 Requested file_id: {file_id}")
+        
+        # Test mode: use sample CSV if no file_id provided
+        if not file_id or file_id == 'sample':
+            print("🧪 Using sample CSV file for testing")
+            file_path = r"e:\New Codes\MP 2.o\02\sample_data.csv"
+            file_info = {
+                'original_filename': 'sample_data.csv',
+                'file_size': 'unknown'
+            }
+        else:
+            print(f"📁 Available uploaded_files keys: {list(uploaded_files.keys())}")
+            
+            # Check if file exists
+            if file_id not in uploaded_files:
+                print(f"❌ File {file_id} not found in uploaded_files")
+                return jsonify({
+                    'success': False,
+                    'error': 'File not found. Please upload a file first.'
+                }), 404
+            
+            file_info = uploaded_files[file_id]
+            file_path = file_info['file_path']
+        
+        print(f"📂 Loading dataset from: {file_path}")
+        
+        # Load dataset using pandas (same as MLCore analyze_dataset)
+        try:
+            if file_path.endswith('.csv'):
+                dataset = pd.read_csv(file_path)
+            elif file_path.endswith(('.xlsx', '.xls')):
+                dataset = pd.read_excel(file_path)
+            elif file_path.endswith('.json'):
+                dataset = pd.read_json(file_path)
+            else:
+                raise ValueError("Unsupported file format")
+                
+            print(f"✅ Dataset loaded successfully with shape: {dataset.shape}")
+        except Exception as load_err:
+            print(f"❌ Failed to load dataset: {load_err}")
+            return jsonify({
+                'success': False,
+                'error': f'Failed to load dataset: {str(load_err)}'
+            }), 500
+        
+        # Analyze columns using visualization engine
+        try:
+            column_info = visualization_engine.analyze_columns(dataset)
+            print(f"✅ Column analysis completed: {len(column_info.get('columns', {}))} columns")
+            print(f"🔍 Column info keys: {list(column_info.keys())}")
+        except Exception as analysis_err:
+            print(f"❌ Failed to analyze columns: {analysis_err}")
+            return jsonify({
+                'success': False,
+                'error': f'Failed to analyze columns: {str(analysis_err)}'
+            }), 500
+        
+        # Get available visualizations
+        try:
+            available_visualizations = visualization_engine.get_available_visualizations(dataset)
+            print(f"✅ Available visualizations: {len(available_visualizations.get('visualizations', {}))} categories")
+            print(f"🔍 Viz keys: {list(available_visualizations.keys())}")
+        except Exception as viz_err:
+            print(f"❌ Failed to get visualizations: {viz_err}")
+            return jsonify({
+                'success': False,
+                'error': f'Failed to get available visualizations: {str(viz_err)}'
+            }), 500
+        
+        # Convert numpy types to JSON serializable types manually
+        import json
+        
+        try:
+            # Transform the data to match frontend interface
+            # Extract column types for easier access
+            categorical_columns = []
+            continuous_columns = []
+            datetime_columns = []
+            
+            for col_name, col_info in column_info['columns'].items():
+                if col_info.get('is_categorical', False):
+                    categorical_columns.append(col_name)
+                elif col_info.get('is_continuous', False):
+                    continuous_columns.append(col_name)
+                elif col_info.get('is_datetime', False):
+                    datetime_columns.append(col_name)
+                    
+            print(f"📊 Categorical columns: {categorical_columns}")
+            print(f"📈 Continuous columns: {continuous_columns}")
+            print(f"📅 Datetime columns: {datetime_columns}")
+            
+            # Structure response to match frontend VisualizationAnalysis interface
+            analysis_response = {
+                'success': True,
+                'analysis': {
+                    'available_visualizations': available_visualizations.get('visualizations', {}),
+                    'column_analysis': {
+                        'total_rows': int(dataset.shape[0]),
+                        'total_columns': int(dataset.shape[1]),
+                        'columns': column_info['columns']
+                    },
+                    'categorical_columns': categorical_columns,
+                    'continuous_columns': continuous_columns,
+                    'datetime_columns': datetime_columns
+                },
+                'file_info': {
+                    'original_filename': file_info['original_filename'],
+                    'file_size': file_info['file_size']
+                }
+            }
+            
+            # Test JSON serialization
+            json.dumps(analysis_response)
+            print("✅ JSON serialization test passed")
+            
+            return jsonify(analysis_response)
+            
+        except TypeError as json_err:
+            print(f"❌ JSON serialization error: {json_err}")
+            # Fallback response with correct structure
+            return jsonify({
+                'success': True,
+                'analysis': {
+                    'available_visualizations': {
+                        'univariate': {'categorical': [], 'continuous': []},
+                        'bivariate': {'continuous_vs_continuous': [], 'categorical_vs_continuous': [], 'categorical_vs_categorical': []},
+                        'multivariate': [],
+                        'time_series': [],
+                        'distribution': []
+                    },
+                    'column_analysis': {
+                        'total_rows': int(dataset.shape[0]),
+                        'total_columns': int(dataset.shape[1]),
+                        'columns': {}
+                    },
+                    'categorical_columns': [],
+                    'continuous_columns': [],
+                    'datetime_columns': []
+                },
+                'file_info': {
+                    'original_filename': file_info['original_filename'],
+                    'file_size': file_info['file_size']
+                },
+                'error': f'Serialization issue: {str(json_err)}'
+            })
+        
+    except Exception as e:
+        error_msg = f"Error analyzing dataset for visualizations: {str(e)}"
+        print(f"❌ {error_msg}")
+        return jsonify({
+            'success': False,
+            'error': error_msg
+        }), 500
+
+@app.route('/api/visualizations/create', methods=['POST'])
+def create_visualization():
+    """
+    Create a visualization based on dataset and parameters
+    
+    JSON body:
+    - file_id: ID of uploaded file
+    - visualization_type: Type of visualization to create
+    - parameters: Visualization parameters
+    
+    Returns:
+    - JSON response with visualization data
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No data provided'
+            }), 400
+        
+        file_id = data.get('file_id')
+        viz_type = data.get('visualization_type')
+        params = data.get('parameters', {})
+        
+        print(f"📊 Creating visualization: {viz_type} for file_id: {file_id}")
+        
+        if not viz_type:
+            return jsonify({
+                'success': False,
+                'error': 'visualization_type is required'
+            }), 400
+        
+        # Handle sample data case
+        if not file_id or file_id == 'sample':
+            print("🧪 Using sample CSV file for visualization")
+            file_path = r"e:\New Codes\MP 2.o\02\sample_data.csv"
+            file_info = {
+                'original_filename': 'sample_data.csv',
+                'file_size': 'unknown'
+            }
+        else:
+            if file_id not in uploaded_files:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid file_id. Please upload a file first.'
+                }), 400
+            
+            # Load the dataset using pandas (same as in analyze endpoint)
+            file_path = uploaded_files[file_id]['file_path']
+            file_info = uploaded_files[file_id]
+        try:
+            if file_path.endswith('.csv'):
+                dataset = pd.read_csv(file_path)
+            elif file_path.endswith(('.xlsx', '.xls')):
+                dataset = pd.read_excel(file_path)
+            elif file_path.endswith('.json'):
+                dataset = pd.read_json(file_path)
+            else:
+                raise ValueError("Unsupported file format")
+                
+            print(f"✅ Dataset loaded for visualization with shape: {dataset.shape}")
+        except Exception as load_err:
+            print(f"❌ Failed to load dataset: {load_err}")
+            return jsonify({
+                'success': False,
+                'error': f'Failed to load dataset: {str(load_err)}'
+            }), 500
+        
+        # Create the visualization
+        try:
+            result = visualization_engine.create_visualization(dataset, viz_type, params)
+            print(f"✅ Visualization created successfully")
+            
+            return jsonify({
+                'success': result['success'],
+                'visualization': result,
+                'file_id': file_id,
+                'visualization_type': viz_type,
+                'parameters': params
+            })
+        except Exception as viz_err:
+            print(f"❌ Failed to create visualization: {viz_err}")
+            return jsonify({
+                'success': False,
+                'error': f'Failed to create visualization: {str(viz_err)}'
+            }), 500
+        
+    except Exception as e:
+        error_msg = f"Error creating visualization: {str(e)}"
+        print(f"❌ {error_msg}")
+        return jsonify({
+            'success': False,
+            'error': error_msg
+        }), 500
 
 @app.errorhandler(404)
 def not_found(error):

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Brain, Target, Loader2, AlertCircle, Zap, Activity, TrendingUp, Star, Database } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -190,10 +190,20 @@ export default function SelectModelPage() {
   const [recommendations, setRecommendations] = useState<ModelRecommendation | null>(null);
   const [error, setError] = useState<string>('');
   const [fileId, setFileId] = useState<string>('');
+  
+  // Prevent duplicate requests in React development mode
+  const hasRequestedRef = useRef(false);
 
   // Load file ID from localStorage and fetch recommendations
   useEffect(() => {
     const loadRecommendations = async () => {
+      // Prevent duplicate requests
+      if (hasRequestedRef.current) {
+        console.log('⚠️  Request already made, skipping duplicate');
+        return;
+      }
+      hasRequestedRef.current = true;
+
       const storedFileId = localStorage.getItem('currentFileId');
       
       if (!storedFileId) {
@@ -205,6 +215,7 @@ export default function SelectModelPage() {
       setFileId(storedFileId);
 
       try {
+        console.log('🚀 Making single request to get model recommendations');
         const response = await apiClient.getModelRecommendations(storedFileId);
         
         if (response.success) {
