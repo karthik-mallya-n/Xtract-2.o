@@ -7,6 +7,7 @@ import os
 import json
 import pandas as pd
 import numpy as np
+from datetime import datetime
 from typing import Dict, Any, List, Tuple
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -28,32 +29,32 @@ class MLCore:
     
     def __init__(self):
         # Google AI Studio configuration
-        self.google_api_key = os.getenv('GOOGLE_AI_API_KEY')
+        self.google_api_key = os.getenv('GOOGLE_API_KEY')
         if not self.google_api_key:
-            raise ValueError("GOOGLE_AI_API_KEY not found in environment variables")
+            raise ValueError("GOOGLE_API_KEY not found in environment variables")
         
         # Configure Google AI Studio
         genai.configure(api_key=self.google_api_key)
         
-        # Generation configuration for complete responses
+        # Generation configuration for fast, complete responses
         self.generation_config = {
             "temperature": 0.1,
-            "top_p": 0.8,
+            "top_p": 0.9,
             "top_k": 40,
-            "max_output_tokens": 8192,  # Maximum to prevent truncation
+            "max_output_tokens": 4096,  # Reduced for faster response
             "response_mime_type": "text/plain",
         }
         
-        # Use the best available stable model for Google AI Studio
+        # Use the standard supported model for Google AI Studio
         self.genai_model = genai.GenerativeModel(
-            model_name='models/gemini-2.5-flash',
+            model_name='gemini-1.5-pro',  # Standard well-supported model
             generation_config=self.generation_config
         )
         
         # Initialize the advanced model trainer
         self.advanced_trainer = AdvancedModelTrainer(base_models_dir="models")
         
-        print(f"✅ MLCore initialized with Google AI Studio (Gemini 2.5 Flash)")
+        print(f"✅ MLCore initialized with Google AI Studio (Gemini 1.5 Pro)")
         print(f"🔑 API Key: {self.google_api_key[:10]}...{self.google_api_key[-4:]}")
         print(f"🤖 Advanced Model Trainer initialized")
     
@@ -229,106 +230,56 @@ Provide practical, actionable recommendations based on the actual data character
             target_type = "categorical" if user_answers.get('data_type') == 'categorical' else "continuous"
             is_labeled = user_answers.get('is_labeled', 'labeled')
             
-            # Build comprehensive prompt with all models for detected scenario
-            prompt_template = """You are an expert Machine Learning Engineer with 15+ years of experience in model selection and predictive analytics.
+            # Build concise prompt for faster response
+            prompt_template = """You are a ML expert. Analyze this dataset and recommend models.
 
-Your task is to analyze this dataset and provide comprehensive model recommendations based on the four fundamental scenarios in machine learning.
+Dataset: {total_rows} rows, {total_columns} columns
+Target type: {target_type}
+Data labeling: {is_labeled}
 
-🎯 **Scenario 1: Labeled + Continuous (Regression)**
-Task: Predict a continuous numerical value
-ALL Models: Linear Regression, Lasso Regression, Ridge Regression, ElasticNet, Support Vector Regression (SVR), K-Nearest Neighbors (KNN) Regressor, Decision Tree Regressor, Random Forest Regressor, Gradient Boosting Regressor, XGBoost Regressor, LightGBM Regressor, CatBoost Regressor, Neural Networks (MLP Regressor)
-
-🏷️ **Scenario 2: Labeled + Categorical (Classification)**  
-Task: Predict a discrete class label
-ALL Models: Logistic Regression, Support Vector Machines (SVM), K-Nearest Neighbors (KNN) Classifier, Naive Bayes, Decision Tree Classifier, Random Forest Classifier, Gradient Boosting Classifier, XGBoost Classifier, LightGBM Classifier, CatBoost Classifier, Neural Networks (MLP Classifier)
-
-🧩 **Scenario 3: Unlabeled + Continuous (Clustering/Dimensionality Reduction)**
-Task: Find hidden groups or simplify data
-ALL Models: K-Means Clustering, DBSCAN, Hierarchical Clustering, Gaussian Mixture Model (GMM), Principal Component Analysis (PCA), t-SNE, UMAP, Isolation Forest, One-Class SVM
-
-🔗 **Scenario 4: Unlabeled + Categorical (Clustering/Association Rules)**
-Task: Group similar items or find association rules
-ALL Models: K-Modes Clustering, Hierarchical Clustering (Hamming distance), Apriori Algorithm, FP-Growth Algorithm, Eclat Algorithm, Multiple Correspondence Analysis (MCA)
-
-Dataset Information:
-- Rows: {total_rows}
-- Columns: {total_columns}  
-- Target Variable Type: {target_type}
-- Data Labeling: {is_labeled}
-- Numeric Columns: {numeric_columns}
-- Categorical Columns: {categorical_columns}
-
-First 20 rows of actual data:
+Data sample:
 {first_20_rows_csv}
 
-CRITICAL INSTRUCTIONS:
-1. **Semantic Analysis**: Analyze column names and values to understand the dataset's domain
-2. **Scenario Detection**: Determine which of the 4 scenarios applies to this dataset
-3. **INCLUDE ALL MODELS**: From the detected scenario, include ALL models listed above (not just top 3)
-4. **Rank by Accuracy**: Rank ALL models in descending order of expected accuracy for this specific dataset
+Provide 3-5 model recommendations in JSON:
 
-You MUST include ALL models from the detected scenario's model list. Do not limit to just 3-5 models.
-
-Respond in JSON format with ALL models:
-
-```json
 {{
-  "scenario_detected": {{
-    "type": "Labeled + Continuous | Labeled + Categorical | Unlabeled + Continuous | Unlabeled + Categorical",
-    "task": "Regression | Classification | Clustering | Association Rules",
-    "reasoning": "Why this scenario was selected based on data analysis"
-  }},
-  "semantic_analysis": {{
-    "domain": "Identified domain (medical, financial, etc.)",
-    "key_insights": "Important observations from column names and data patterns"
-  }},
   "recommended_models": [
     {{
-      "rank": 1,
       "name": "Model Name",
-      "expected_accuracy": "95-98%",
-      "reasoning": "Why this model is ranked #1 for this dataset",
-      "advantages": "Key strengths for this scenario"
-    }},
-    {{
-      "rank": 2,
-      "name": "Model Name", 
-      "expected_accuracy": "90-95%",
-      "reasoning": "Why this model is ranked #2",
-      "advantages": "Key strengths"
+      "accuracy_estimate": 85,
+      "description": "Brief reason why this model fits"
     }}
-    // CONTINUE FOR ALL MODELS IN THE DETECTED SCENARIO - DO NOT STOP AT 3
   ],
   "primary_recommendation": {{
-    "model": "Top ranked model name",
-    "confidence": "High/Medium/Low",
-    "rationale": "Final recommendation reasoning"
+    "model": "Best model name",
+    "reasoning": "Why this is the best choice"
   }}
 }}
-```
 
-REMEMBER: Include ALL models from the detected scenario, not just the top few. The user specifically wants to see the complete list ranked by accuracy."""
+Focus on practical models: Random Forest, Logistic Regression, Linear Regression, SVM, Decision Tree."""
 
-            # Format the prompt with actual data
+            # Format the prompt with essential data only
             prompt = prompt_template.format(
                 total_rows=dataset_analysis['total_rows'],
                 total_columns=dataset_analysis['total_columns'],
                 target_type=target_type,
                 is_labeled=is_labeled,
-                numeric_columns=dataset_analysis['numeric_columns'],
-                categorical_columns=dataset_analysis['categorical_columns'],
-                first_20_rows_csv=dataset_analysis['first_20_rows_csv']
+                first_20_rows_csv=dataset_analysis['first_20_rows_csv'][:1000]  # Limit to 1000 chars for speed
             )
             
-            print(f"📤 SENDING REQUEST TO GEMINI 2.5 FLASH")
+            print(f"📤 SENDING REQUEST TO GEMINI 1.5 PRO (STANDARD)")
             print(f"📋 Prompt length: {len(prompt)} characters")
-            print(f"🔗 Model: Gemini 2.5 Flash (Optimized for Complete Responses)")
+            print(f"🔗 Model: Gemini 1.5 Pro (Standard & Reliable)")
             print(f"📏 Max Output Tokens: {self.generation_config['max_output_tokens']}")
             
-            # Make the request to Gemini with full configuration
+            # Make the request to Gemini with optimized configuration for speed
             response = self.genai_model.generate_content(
                 prompt,
-                generation_config=self.generation_config
+                generation_config={
+                    "temperature": 0.2,  # Lower for consistency and speed
+                    "top_p": 0.8,
+                    "max_output_tokens": 1500,  # Reduced for faster response
+                }
             )
             raw_response = response.text
             
@@ -338,169 +289,64 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             # Enhanced logging for terminal
             print("\n" + "="*80)
-            print("🤖 GEMINI MODEL RECOMMENDATION RESPONSE")
+            print("🤖 GEMINI 1.5 PRO MODEL RECOMMENDATION RESPONSE")
             print("="*80)
             print(f"Target Variable Type: {target_type.title()}")
-            print(f"Dataset Columns: {dataset_analysis['total_columns']} columns")
-            print(f"Dataset Rows: {dataset_analysis['total_rows']} rows")
+            print(f"Dataset: {dataset_analysis['total_rows']} rows × {dataset_analysis['total_columns']} columns")
             
-            print(f"\n📋 RAW GEMINI RESPONSE:")
+            # Show condensed response for faster debugging
+            preview = raw_response[:300] + "..." if len(raw_response) > 300 else raw_response
+            print(f"\n📋 RESPONSE PREVIEW:")
             print("-" * 50)
-            print(raw_response)
+            print(preview)
             print("-" * 50)
 
-            # Try to parse JSON response
+            # Simplified JSON parsing for faster processing
             try:
-                # Clean and parse the response
+                import json
+                
+                # Clean response text
                 cleaned_response = raw_response.strip()
                 
-                # Check if response seems incomplete (no closing brace)
-                if not cleaned_response.endswith('}'):
-                    print(f"⚠️ Response appears incomplete - missing closing brace")
-                    print(f"📏 Response ends with: '...{cleaned_response[-50:]}'")
-                
-                # Remove markdown code blocks if present
+                # Extract JSON from markdown if present
                 if "```json" in cleaned_response:
-                    if cleaned_response.count("```") >= 2:
-                        # Extract content between ```json and ```
-                        start_idx = cleaned_response.find("```json") + 7
-                        end_idx = cleaned_response.find("```", start_idx)
-                        if end_idx != -1:
-                            cleaned_response = cleaned_response[start_idx:end_idx].strip()
-                    else:
-                        # Handle incomplete markdown - remove ```json from the start
-                        cleaned_response = cleaned_response.replace("```json", "").strip()
-                        # Remove any trailing ``` if present
-                        if "```" in cleaned_response:
-                            cleaned_response = cleaned_response.split("```")[0]
-                elif "```" in cleaned_response:
-                    # Handle cases with just ```
-                    parts = cleaned_response.split("```")
-                    if len(parts) >= 3:
-                        cleaned_response = parts[1]
+                    start = cleaned_response.find("```json") + 7
+                    end = cleaned_response.find("```", start)
+                    if end != -1:
+                        cleaned_response = cleaned_response[start:end].strip()
+                elif "{" in cleaned_response and "}" in cleaned_response:
+                    # Extract JSON object
+                    start = cleaned_response.find("{")
+                    end = cleaned_response.rfind("}") + 1
+                    cleaned_response = cleaned_response[start:end]
                 
-                # Try to fix incomplete JSON by adding missing parts
-                if cleaned_response and not cleaned_response.endswith('}'):
-                    print(f"🔧 Attempting to fix incomplete JSON...")
-                    
-                    # Fix incomplete expected_accuracy field (most common truncation)
-                    if '"expected_accuracy": "' in cleaned_response:
-                        # Find the last occurrence
-                        last_accuracy_idx = cleaned_response.rfind('"expected_accuracy": "')
-                        if last_accuracy_idx != -1:
-                            remaining_text = cleaned_response[last_accuracy_idx + 21:]  # After '"expected_accuracy": "'
-                            # Check if the string is incomplete (no closing quote)
-                            if '"' not in remaining_text or (remaining_text.find('"') == -1):
-                                # Complete the accuracy field
-                                if '%' not in remaining_text:
-                                    cleaned_response += '%"'
-                                else:
-                                    cleaned_response += '"'
-                                print(f"🔧 Fixed incomplete accuracy field")
-                    
-                    # Fix incomplete reasoning field
-                    if '"reasoning": "' in cleaned_response:
-                        reasoning_count = cleaned_response.count('"reasoning": "')
-                        quote_after_reasoning = cleaned_response.count('"reasoning": "') 
-                        # Count how many reasoning fields are properly closed
-                        closed_reasoning = cleaned_response.count('"reasoning":')
-                        if reasoning_count > closed_reasoning:
-                            cleaned_response += '"'
-                            print(f"🔧 Fixed incomplete reasoning field")
-                    
-                    # Remove incomplete trailing entry if it exists
-                    lines = cleaned_response.split('\n')
-                    if lines and not lines[-1].strip().endswith(('}', ']', '"')):
-                        # Remove the incomplete last line
-                        lines = lines[:-1]
-                        cleaned_response = '\n'.join(lines)
-                        print(f"🔧 Removed incomplete final entry")
-                    
-                    # Ensure proper array closure
-                    if '"recommended_models": [' in cleaned_response and not cleaned_response.count('[') == cleaned_response.count(']'):
-                        if not cleaned_response.rstrip().endswith(']'):
-                            # Close the array properly
-                            if cleaned_response.rstrip().endswith(','):
-                                cleaned_response = cleaned_response.rstrip()[:-1]  # Remove trailing comma
-                            cleaned_response += '\n  ]'
-                            print(f"🔧 Fixed incomplete array")
-                    
-                    # Count opening vs closing braces to determine how many we need
-                    open_braces = cleaned_response.count('{')
-                    close_braces = cleaned_response.count('}')
-                    missing_braces = open_braces - close_braces
-                    
-                    if missing_braces > 0:
-                        # Add missing closing braces
-                        cleaned_response += '}' * missing_braces
-                        print(f"🔧 Added {missing_braces} missing closing brace(s)")
+                # Parse JSON
+                recommendations = json.loads(cleaned_response)
                 
-                parsed_recommendations = json.loads(cleaned_response.strip())
-                
-                print(f"\n✅ PARSED RECOMMENDATIONS:")
-                print("-" * 50)
-                
-                # Display scenario detection
-                if 'scenario_detected' in parsed_recommendations:
-                    scenario = parsed_recommendations['scenario_detected']
-                    print(f"🎯 SCENARIO: {scenario.get('type', 'Unknown')}")
-                    print(f"📝 Task: {scenario.get('task', 'Unknown')}")
-                    print(f"🧠 Reasoning: {scenario.get('reasoning', 'No reasoning')}")
-                
-                # Display semantic analysis
-                if 'semantic_analysis' in parsed_recommendations:
-                    semantic = parsed_recommendations['semantic_analysis']
-                    print(f"\n🔍 SEMANTIC ANALYSIS:")
-                    print(f"🏢 Domain: {semantic.get('domain', 'Unknown')}")
-                    print(f"💡 Key Insights: {semantic.get('key_insights', 'No insights')}")
-                
-                # Display ranked models
-                if 'recommended_models' in parsed_recommendations:
-                    models = parsed_recommendations['recommended_models']
-                    print(f"\n� RANKED MODELS (by expected accuracy):")
-                    for model in models:
-                        rank = model.get('rank', 'Unknown')
-                        name = model.get('name', 'Unknown')
-                        accuracy = model.get('expected_accuracy', 'Unknown')
-                        print(f"  #{rank}. {name} - {accuracy}")
-                        print(f"      💫 Reasoning: {model.get('reasoning', 'No reasoning')}")
-                        print(f"      ✅ Advantages: {model.get('advantages', 'No advantages')}")
-                        print()
-                
-                # Display primary recommendation
-                if 'primary_recommendation' in parsed_recommendations:
-                    primary = parsed_recommendations['primary_recommendation']
-                    print(f"🏆 PRIMARY RECOMMENDATION: {primary.get('model', 'Unknown')}")
-                    print(f"🎯 Confidence: {primary.get('confidence', 'Unknown')}")
-                    print(f"📋 Rationale: {primary.get('rationale', 'No rationale')}")
-                
-                print("="*80)
+                print(f"✅ Successfully parsed AI recommendations")
+                print(f"📊 Found {len(recommendations.get('recommended_models', []))} model recommendations")
                 
                 return {
                     'success': True,
-                    'recommendations': parsed_recommendations,
-                    'raw_response': raw_response
+                    'recommendations': recommendations,
+                    'raw_response': raw_response[:500]  # Truncated for logs
                 }
                 
             except json.JSONDecodeError as e:
-                print(f"⚠️ JSON parsing failed: {str(e)}")
-                print(f"📄 Returning raw response")
+                print(f"❌ Failed to parse JSON response: {e}")
+                print(f"📝 Raw response preview: {raw_response[:200]}...")
                 return {
-                    'success': True,
-                    'recommendations': {},
-                    'raw_response': raw_response,
-                    'error': f'Failed to parse JSON: {str(e)}'
+                    "success": False,
+                    "error": "Failed to parse AI response as JSON",
+                    "raw_response": raw_response[:500]
                 }
-            
+                
         except Exception as e:
-            print(f"❌ Error making request to Google AI Studio: {str(e)}")
+            print(f"❌ Error making Google AI Studio request: {str(e)}")
             return {
-                'success': False,
-                'error': f'API request failed: {str(e)}',
-                'recommendations': {},
-                'raw_response': ''
+                "success": False,
+                "error": f"Google AI Studio error: {str(e)}"
             }
-    
     def train_recommended_model(self, file_path: str, recommendations: Dict[str, Any], user_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Train the recommended model based on AI recommendations
@@ -1991,7 +1837,7 @@ print("\\n✅ Clustering analysis completed!")
 
     def train_advanced_model(self, model_name: str, file_path: str, target_column: str) -> Dict[str, Any]:
         """
-        Train a model using Pipeline + GridSearchCV for maximum accuracy (90%+)
+        Train a model with MODEL-SPECIFIC preprocessing and accurate performance metrics
         
         Args:
             model_name (str): Name of the model to train
@@ -2002,44 +1848,64 @@ print("\\n✅ Clustering analysis completed!")
             dict: Training results with performance metrics
         """
         try:
-            print(f"\n🚀 STARTING HIGH-ACCURACY PIPELINE TRAINING")
+            print(f"\n🚀 STARTING MODEL-SPECIFIC TRAINING")
             print("="*80)
             print(f"🤖 Model: {model_name}")
             print(f"📄 Dataset: {file_path}")
             print(f"🎯 Target: {target_column}")
             
+            # Initialize preprocessing log
+            preprocessing_log = {
+                "model_name": model_name,
+                "timestamp": datetime.now().isoformat(),
+                "steps": [],
+                "data_info": {},
+                "model_config": {}
+            }
+            
             # Map model names from recommendation system to internal names
             mapped_model_name = self._map_model_name(model_name)
             print(f"🔄 Mapped to trainer name: {mapped_model_name}")
             
-            # Execute high-accuracy Pipeline + GridSearchCV training
-            result = self._execute_pipeline_training(
+            # Execute model-specific training with detailed preprocessing logging
+            result = self._execute_model_specific_training(
                 model_name=mapped_model_name,
                 original_name=model_name,
                 file_path=file_path,
-                target_column=target_column
+                target_column=target_column,
+                preprocessing_log=preprocessing_log
             )
             
             if result['success']:
-                print(f"\n🎉 ADVANCED TRAINING COMPLETED SUCCESSFULLY!")
+                print(f"\n🎉 MODEL-SPECIFIC TRAINING COMPLETED!")
                 print(f"📁 Model folder: {result['model_folder']}")
                 print(f"🎯 {result['score_name']}: {result['main_score']:.4f} ({result['main_score']*100:.2f}%)")
                 
-                if result.get('accuracy_achieved', False):
-                    print(f"✅ SUCCESS: Achieved target accuracy!")
-                else:
-                    print(f"⚠️  Target accuracy not met but model trained successfully")
+                # Display preprocessing summary
+                print(f"\n📋 PREPROCESSING SUMMARY:")
+                for step in preprocessing_log['steps']:
+                    print(f"   • {step['step']}: {step['description']}")
+                    if 'details' in step:
+                        print(f"     ↳ {step['details']}")
+                        
+                print(f"\n📊 TRAINING RESULTS DISPLAY:")
+                self._display_training_results(result)
+                
             else:
-                print(f"❌ ADVANCED TRAINING FAILED: {result.get('error', 'Unknown error')}")
+                print(f"❌ MODEL-SPECIFIC TRAINING FAILED: {result.get('error', 'Unknown error')}")
+            
+            # Add preprocessing log to result
+            result['preprocessing_log'] = preprocessing_log
             
             return result
             
         except Exception as e:
-            print(f"❌ Error in advanced model training: {str(e)}")
+            print(f"❌ Error in model-specific training: {str(e)}")
             return {
                 'success': False,
                 'error': str(e),
-                'model_name': model_name
+                'model_name': model_name,
+                'preprocessing_log': preprocessing_log if 'preprocessing_log' in locals() else {}
             }
     
     def get_available_models(self, problem_type: str = None) -> List[str]:
@@ -2075,6 +1941,397 @@ print("\\n✅ Clustering analysis completed!")
             np.ndarray: Predictions
         """
         return self.advanced_trainer.predict(model_folder, new_data, timestamp)
+
+    def _execute_model_specific_training(self, model_name: str, original_name: str, file_path: str, target_column: str, preprocessing_log: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute model-specific training with detailed preprocessing logging and accurate performance
+        """
+        import pandas as pd
+        import numpy as np
+        from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold, cross_val_score
+        from sklearn.pipeline import Pipeline
+        from sklearn.compose import ColumnTransformer
+        from sklearn.impute import SimpleImputer
+        from sklearn.preprocessing import StandardScaler, OneHotEncoder, RobustScaler, MinMaxScaler
+        from sklearn.metrics import accuracy_score, classification_report, mean_squared_error, r2_score, precision_score, recall_score
+        from sklearn.feature_selection import SelectKBest, f_classif, f_regression
+        import os
+        from datetime import datetime
+        import joblib
+        from scipy import stats
+        
+        try:
+            # 1. Load and analyze data
+            print(f"\n📄 Loading dataset...")
+            df = pd.read_csv(file_path)
+            print(f"Dataset shape: {df.shape}")
+            
+            # Log data loading
+            preprocessing_log['steps'].append({
+                'step': 'Data Loading',
+                'description': f'Loaded dataset with shape {df.shape}',
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            # Validate target column
+            if target_column not in df.columns:
+                raise ValueError(f"Target column '{target_column}' not found in dataset")
+            
+            # Determine problem type
+            unique_targets = df[target_column].nunique()
+            target_dtype = df[target_column].dtype
+            is_classification = unique_targets <= 20 and target_dtype in ['int64', 'int32', 'object', 'bool', 'category']
+            
+            scenario = "classification" if is_classification else "regression"
+            print(f"🎯 Problem type: {scenario}")
+            print(f"🎯 Target '{target_column}': {unique_targets} unique values")
+            
+            # Log problem type detection
+            preprocessing_log['data_info'] = {
+                'problem_type': scenario,
+                'target_column': target_column,
+                'unique_targets': unique_targets,
+                'total_samples': len(df),
+                'total_features': len(df.columns) - 1
+            }
+            preprocessing_log['steps'].append({
+                'step': 'Problem Type Detection',
+                'description': f'Detected {scenario} problem with {unique_targets} unique target values',
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            # 2. Prepare features and target with model-specific preprocessing
+            print(f"\n🔄 Applying MODEL-SPECIFIC preprocessing for {model_name}...")
+            y = df[target_column]
+            X = df.drop(columns=[target_column])
+            
+            # Identify feature types
+            numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+            categorical_features = X.select_dtypes(include=['object', 'category']).columns.tolist()
+            
+            print(f"📊 Features: {X.shape[1]} total")
+            print(f"   📈 Numerical: {len(numeric_features)} - {numeric_features}")
+            print(f"   🏷️  Categorical: {len(categorical_features)} - {categorical_features}")
+            
+            # Log feature analysis
+            preprocessing_log['steps'].append({
+                'step': 'Feature Analysis',
+                'description': f'Identified {len(numeric_features)} numerical and {len(categorical_features)} categorical features',
+                'details': f'Numerical: {numeric_features}, Categorical: {categorical_features}',
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            # 3. Apply model-specific preprocessing strategy
+            print(f"\n🔧 Building MODEL-SPECIFIC preprocessing pipeline for {model_name}...")
+            X_processed, y_processed, preprocessing_pipeline = self._apply_model_specific_preprocessing(
+                X, y, model_name, scenario, numeric_features, categorical_features, preprocessing_log
+            )
+            
+            # 4. Split data with stratification for classification
+            if scenario == 'classification':
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_processed, y_processed, test_size=0.2, random_state=42, stratify=y_processed
+                )
+            else:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_processed, y_processed, test_size=0.2, random_state=42
+                )
+            
+            print(f"\n📊 Data Split:")
+            print(f"   Training: {X_train.shape[0]} samples")
+            print(f"   Testing: {X_test.shape[0]} samples")
+            
+            preprocessing_log['steps'].append({
+                'step': 'Data Splitting',
+                'description': f'Split data into {X_train.shape[0]} training and {X_test.shape[0]} testing samples',
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            # 5. Train model using the advanced trainer with model-specific parameters
+            print(f"\n🤖 Training {model_name} with model-specific configuration...")
+            
+            # Use the advanced trainer but with proper data
+            training_result = self.advanced_trainer.train_model(
+                model_name=model_name,
+                X_train=X_train, 
+                X_test=X_test, 
+                y_train=y_train, 
+                y_test=y_test,
+                scenario=scenario
+            )
+            
+            if not training_result['success']:
+                return training_result
+            
+            # Training was successful, extract performance metrics
+            main_score = training_result.get('main_score', 0)
+            performance = training_result.get('performance', {})
+            
+            print(f"\n📊 MODEL-SPECIFIC PERFORMANCE:")
+            print(f"✅ Training completed for {model_name}")
+            print(f"🎯 Performance Score: {main_score:.4f} ({main_score*100:.2f}%)")
+            
+            # Return comprehensive result
+            return {
+                'success': True,
+                'model_name': original_name,
+                'trainer_model_name': model_name,
+                'main_score': main_score,
+                'performance': performance,
+                'model_folder': training_result.get('model_folder', ''),
+                'problem_type': training_result.get('problem_type', scenario),
+                'preprocessing_log': preprocessing_log,
+                'threshold_met': training_result.get('threshold_met', False),
+                'score_name': training_result.get('score_name', 'Score'),
+                'test_accuracy': performance.get('accuracy', main_score) if scenario == 'classification' else None,
+                'test_r2': performance.get('r2_score', main_score) if scenario == 'regression' else None,
+                'cv_score': performance.get('cv_accuracy', performance.get('cv_r2', 0)),
+                'training_summary': f"Model-specific training completed with {main_score*100:.2f}% performance"
+            }
+            with open(f"{model_folder}/preprocessing_log.json", 'w') as f:
+                json.dump(preprocessing_log, f, indent=2)
+            
+            print(f"\n💾 Model saved to: {model_folder}")
+            
+            return {
+                'success': True,
+                'original_name': original_name,
+                'model_name': model_name,
+                'model_folder': model_folder,
+                'main_score': test_score,  # Use test score as main score (realistic performance)
+                'train_score': train_score,
+                'val_score': test_score,  # Same as test score
+                'test_score': test_score,
+                'cross_val_scores': cv_scores.tolist(),
+                'score_name': score_name,
+                'feature_count': X_processed.shape[1],
+                'train_samples': len(X_train),
+                'test_samples': len(X_test),
+                'problem_type': scenario,
+                'preprocessing_log': preprocessing_log
+            }
+            
+        except Exception as e:
+            print(f"❌ Error in model-specific training: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'model_name': original_name,
+                'preprocessing_log': preprocessing_log
+            }
+
+    def _apply_model_specific_preprocessing(self, X, y, model_name, scenario, numeric_features, categorical_features, preprocessing_log):
+        """
+        Apply preprocessing specific to the model type to get accurate performance
+        """
+        from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler, OneHotEncoder, LabelEncoder
+        from sklearn.impute import SimpleImputer
+        from sklearn.compose import ColumnTransformer
+        from sklearn.feature_selection import SelectKBest, f_classif, f_regression
+        import pandas as pd
+        import numpy as np
+        from datetime import datetime
+        from scipy import stats
+        
+        # Model-specific preprocessing strategies
+        model_preprocessing = {
+            # Linear models need scaling
+            'Logistic Regression': {'scaler': StandardScaler, 'feature_selection': True, 'handle_outliers': False},
+            'Linear Regression': {'scaler': StandardScaler, 'feature_selection': True, 'handle_outliers': False},
+            'Ridge': {'scaler': StandardScaler, 'feature_selection': False, 'handle_outliers': False},
+            'Lasso': {'scaler': StandardScaler, 'feature_selection': False, 'handle_outliers': False},
+            'SVC': {'scaler': StandardScaler, 'feature_selection': True, 'handle_outliers': True},
+            'SVR': {'scaler': StandardScaler, 'feature_selection': True, 'handle_outliers': True},
+            
+            # Tree-based models don't need scaling but can benefit from outlier handling
+            'Random Forest': {'scaler': None, 'feature_selection': False, 'handle_outliers': False},
+            'Decision Tree': {'scaler': None, 'feature_selection': False, 'handle_outliers': False},
+            'Gradient Boosting': {'scaler': None, 'feature_selection': False, 'handle_outliers': True},
+            'XGBoost': {'scaler': None, 'feature_selection': False, 'handle_outliers': True},
+            
+            # Neural networks need scaling
+            'Neural Network': {'scaler': StandardScaler, 'feature_selection': True, 'handle_outliers': True},
+            
+            # Distance-based models need scaling
+            'KNN': {'scaler': RobustScaler, 'feature_selection': True, 'handle_outliers': True},
+            
+            # Naive Bayes works well without scaling
+            'Naive Bayes': {'scaler': None, 'feature_selection': True, 'handle_outliers': False}
+        }
+        
+        # Get preprocessing strategy for this model
+        strategy = model_preprocessing.get(model_name, {
+            'scaler': StandardScaler, 'feature_selection': False, 'handle_outliers': False
+        })
+        
+        print(f"📋 Applying preprocessing strategy for {model_name}:")
+        print(f"   • Scaler: {strategy['scaler'].__name__ if strategy['scaler'] else 'None'}")
+        print(f"   • Feature Selection: {strategy['feature_selection']}")
+        print(f"   • Outlier Handling: {strategy['handle_outliers']}")
+        
+        # Log preprocessing strategy
+        preprocessing_log['model_config'] = {
+            'scaler': strategy['scaler'].__name__ if strategy['scaler'] else 'None',
+            'feature_selection': strategy['feature_selection'],
+            'outlier_handling': strategy['handle_outliers']
+        }
+        
+        # Handle missing values first
+        missing_info = X.isnull().sum().sum()
+        if missing_info > 0:
+            print(f"🔧 Handling {missing_info} missing values...")
+            
+            # Numeric imputation
+            if numeric_features:
+                numeric_imputer = SimpleImputer(strategy='median')
+                X[numeric_features] = numeric_imputer.fit_transform(X[numeric_features])
+            
+            # Categorical imputation
+            if categorical_features:
+                categorical_imputer = SimpleImputer(strategy='most_frequent')
+                X[categorical_features] = categorical_imputer.fit_transform(X[categorical_features])
+                
+            preprocessing_log['steps'].append({
+                'step': 'Missing Value Imputation',
+                'description': f'Imputed {missing_info} missing values',
+                'details': f'Numeric: median imputation, Categorical: mode imputation',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        # Handle outliers if specified by model
+        if strategy['handle_outliers'] and numeric_features:
+            print(f"🔧 Handling outliers for {model_name}...")
+            
+            outliers_removed = 0
+            for col in numeric_features:
+                z_scores = np.abs(stats.zscore(X[col]))
+                outlier_mask = z_scores > 3
+                outliers_in_col = outlier_mask.sum()
+                if outliers_in_col > 0:
+                    # Cap outliers at 3 standard deviations
+                    mean_val = X[col].mean()
+                    std_val = X[col].std()
+                    X.loc[outlier_mask, col] = np.clip(X.loc[outlier_mask, col], 
+                                                      mean_val - 3*std_val, 
+                                                      mean_val + 3*std_val)
+                    outliers_removed += outliers_in_col
+            
+            if outliers_removed > 0:
+                preprocessing_log['steps'].append({
+                    'step': 'Outlier Handling',
+                    'description': f'Capped {outliers_removed} outliers using 3-sigma rule',
+                    'timestamp': datetime.now().isoformat()
+                })
+        
+        # Encode categorical variables
+        if categorical_features:
+            print(f"🔧 Encoding {len(categorical_features)} categorical features...")
+            
+            # Use Label Encoding for binary categories, One-Hot for multi-class
+            for col in categorical_features:
+                unique_vals = X[col].nunique()
+                if unique_vals == 2:
+                    # Binary encoding
+                    le = LabelEncoder()
+                    X[col] = le.fit_transform(X[col].astype(str))
+                else:
+                    # One-hot encoding for multi-class
+                    dummies = pd.get_dummies(X[col], prefix=col, drop_first=True)
+                    X = pd.concat([X.drop(columns=[col]), dummies], axis=1)
+            
+            preprocessing_log['steps'].append({
+                'step': 'Categorical Encoding',
+                'description': f'Encoded {len(categorical_features)} categorical features',
+                'details': 'Binary: Label Encoding, Multi-class: One-Hot Encoding',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        # Apply scaling if specified by model
+        if strategy['scaler']:
+            print(f"🔧 Applying {strategy['scaler'].__name__} scaling for {model_name}...")
+            scaler = strategy['scaler']()
+            
+            # Update numeric features list after encoding
+            numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+            
+            if numeric_features:
+                X[numeric_features] = scaler.fit_transform(X[numeric_features])
+                
+                preprocessing_log['steps'].append({
+                    'step': 'Feature Scaling',
+                    'description': f'Applied {strategy["scaler"].__name__} to {len(numeric_features)} features',
+                    'timestamp': datetime.now().isoformat()
+                })
+        
+        # Apply feature selection if specified by model
+        if strategy['feature_selection'] and X.shape[1] > 10:
+            print(f"🔧 Applying feature selection for {model_name}...")
+            
+            # Select top k features based on statistical tests
+            k = min(10, X.shape[1])  # Select up to 10 best features
+            
+            if scenario == 'classification':
+                selector = SelectKBest(score_func=f_classif, k=k)
+            else:
+                selector = SelectKBest(score_func=f_regression, k=k)
+            
+            X_selected = selector.fit_transform(X, y)
+            selected_features = X.columns[selector.get_support()].tolist()
+            
+            print(f"   Selected {len(selected_features)} features: {selected_features}")
+            
+            # Convert back to DataFrame
+            X = pd.DataFrame(X_selected, columns=selected_features, index=X.index)
+            
+            preprocessing_log['steps'].append({
+                'step': 'Feature Selection',
+                'description': f'Selected top {len(selected_features)} features using statistical tests',
+                'details': f'Selected features: {selected_features}',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        print(f"✅ Model-specific preprocessing completed. Final shape: {X.shape}")
+        
+        return X, y, None  # Return processed features and target
+    
+    def _display_training_results(self, result):
+        """
+        Display training results in a formatted way
+        """
+        print(f"\n" + "="*60)
+        print(f"🏆 TRAINING RESULTS FOR {result.get('original_name', 'Unknown Model')}")
+        print(f"="*60)
+        
+        if result.get('success', False):
+            print(f"📊 Performance Metrics:")
+            print(f"   • {result.get('score_name', 'Score')}: {result.get('main_score', 0):.4f} ({result.get('main_score', 0)*100:.2f}%)")
+            
+            if 'train_score' in result:
+                print(f"   • Training Score: {result['train_score']:.4f} ({result['train_score']*100:.2f}%)")
+            if 'val_score' in result:
+                print(f"   • Validation Score: {result['val_score']:.4f} ({result['val_score']*100:.2f}%)")
+            if 'test_score' in result:
+                print(f"   • Test Score: {result['test_score']:.4f} ({result['test_score']*100:.2f}%)")
+            
+            if 'cross_val_scores' in result:
+                cv_scores = result['cross_val_scores']
+                print(f"   • Cross-Validation: {np.mean(cv_scores):.4f} ± {np.std(cv_scores):.4f}")
+            
+            if 'feature_count' in result:
+                print(f"📋 Dataset Information:")
+                print(f"   • Features Used: {result['feature_count']}")
+                print(f"   • Training Samples: {result.get('train_samples', 'Unknown')}")
+                print(f"   • Test Samples: {result.get('test_samples', 'Unknown')}")
+            
+            model_params = result.get('best_params', {})
+            if model_params:
+                print(f"⚙️ Best Parameters:")
+                for param, value in model_params.items():
+                    print(f"   • {param}: {value}")
+        else:
+            print(f"❌ Training Failed: {result.get('error', 'Unknown error')}")
+        
+        print(f"="*60)
 
 # Create a global instance
 ml_core = MLCore()

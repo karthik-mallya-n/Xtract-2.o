@@ -501,34 +501,69 @@ class AdvancedModelTrainer:
         
         return X_scaled, y, selected_features, preprocessing_info
     
-    def train_model(self, model_name: str, file_path: str, target_column: str) -> Dict[str, Any]:
-        """Train a model with 90%+ accuracy optimization"""
+    def train_model(self, model_name: str, file_path: str = None, target_column: str = None, X_train=None, X_test=None, y_train=None, y_test=None, scenario=None) -> Dict[str, Any]:
+        """
+        Train a model with proper model-specific configuration
+        Can accept either file_path+target_column OR pre-processed X_train, X_test, y_train, y_test
+        """
         
         print(f"\n🚀 TRAINING MODEL: {model_name}")
         print("="*80)
         
         try:
-            # Load data
-            if file_path.endswith('.csv'):
-                df = pd.read_csv(file_path)
-            elif file_path.endswith('.xlsx'):
-                df = pd.read_excel(file_path)
+            # Handle two modes: file-based or pre-processed data
+            if X_train is not None and X_test is not None and y_train is not None and y_test is not None:
+                # Use pre-processed data
+                print(f"📊 Using pre-processed data")
+                print(f"📊 Training set: {X_train.shape[0]} samples, {X_train.shape[1]} features")
+                print(f"📊 Test set: {X_test.shape[0]} samples")
+                
+                # Determine problem type if not provided
+                if scenario is None:
+                    unique_targets = len(np.unique(y_train))
+                    is_classification = unique_targets < 20
+                    problem_type = "classification" if is_classification else "regression"
+                else:
+                    problem_type = scenario
+                    is_classification = scenario == "classification"
+                    
             else:
-                raise ValueError("Unsupported file format")
+                # Load data from file (original behavior)
+                if file_path is None or target_column is None:
+                    raise ValueError("Either provide (file_path, target_column) or (X_train, X_test, y_train, y_test)")
+                    
+                # Load data
+                if file_path.endswith('.csv'):
+                    df = pd.read_csv(file_path)
+                elif file_path.endswith('.xlsx'):
+                    df = pd.read_excel(file_path)
+                else:
+                    raise ValueError("Unsupported file format")
+                
+                print(f"📊 Dataset loaded: {df.shape[0]} rows, {df.shape[1]} columns")
+                
+                # Validate target column
+                if target_column not in df.columns:
+                    raise ValueError(f"Target column '{target_column}' not found in dataset")
+                
+                # Determine problem type
+                unique_targets = df[target_column].nunique()
+                is_classification = unique_targets < 20 and df[target_column].dtype in ['int64', 'int32', 'object', 'bool']
+                
+                problem_type = "classification" if is_classification else "regression"
+                
+                # Preprocess data
+                X, y, feature_names, preprocessing_info = self.preprocess_data(df, target_column)
+                
+                # Split data
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=0.2, random_state=42, stratify=y if is_classification else None
+                )
+                
+                print(f"📊 Training set: {X_train.shape[0]} samples")
+                print(f"📊 Test set: {X_test.shape[0]} samples")
             
-            print(f"📊 Dataset loaded: {df.shape[0]} rows, {df.shape[1]} columns")
-            
-            # Validate target column
-            if target_column not in df.columns:
-                raise ValueError(f"Target column '{target_column}' not found in dataset")
-            
-            # Determine problem type
-            unique_targets = df[target_column].nunique()
-            is_classification = unique_targets < 20 and df[target_column].dtype in ['int64', 'int32', 'object', 'bool']
-            
-            problem_type = "classification" if is_classification else "regression"
             print(f"🎯 Problem type: {problem_type}")
-            print(f"🎯 Target variable: {target_column} ({unique_targets} unique values)")
             
             # Select appropriate model configuration
             if is_classification:
@@ -539,17 +574,6 @@ class AdvancedModelTrainer:
                 if model_name not in self.regression_models:
                     raise ValueError(f"Model '{model_name}' not available for regression")
                 model_config = self.regression_models[model_name]
-            
-            # Preprocess data
-            X, y, feature_names, preprocessing_info = self.preprocess_data(df, target_column)
-            
-            # Split data
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42, stratify=y if is_classification else None
-            )
-            
-            print(f"📊 Training set: {X_train.shape[0]} samples")
-            print(f"📊 Test set: {X_test.shape[0]} samples")
             
             # Hyperparameter tuning with GridSearchCV
             print(f"🔍 Hyperparameter tuning...")
@@ -583,10 +607,19 @@ class AdvancedModelTrainer:
                 accuracy = accuracy_score(y_test, y_pred)
                 print(f"🎯 Test Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
                 
-                # Cross-validation score
-                cv_scores = cross_val_score(best_model, X, y, cv=5, scoring='accuracy')
-                cv_mean = cv_scores.mean()
-                print(f"🔄 Cross-validation Accuracy: {cv_mean:.4f} ± {cv_scores.std()*2:.4f}")
+                # Cross-validation score (only available with file-based training)
+                if X_train is not None and y_train is not None:
+                    # For pre-processed data, combine train and test for CV
+                    X_combined = np.vstack([X_train, X_test])
+                    y_combined = np.hstack([y_train, y_test])
+                    cv_scores = cross_val_score(best_model, X_combined, y_combined, cv=5, scoring='accuracy')
+                    cv_mean = cv_scores.mean()
+                    print(f"🔄 Cross-validation Accuracy: {cv_mean:.4f} ± {cv_scores.std()*2:.4f}")
+                else:
+                    # File-based training
+                    cv_scores = cross_val_score(best_model, X, y, cv=5, scoring='accuracy')
+                    cv_mean = cv_scores.mean()
+                    print(f"🔄 Cross-validation Accuracy: {cv_mean:.4f} ± {cv_scores.std()*2:.4f}")
                 
                 performance = {
                     'accuracy': accuracy,
@@ -604,10 +637,19 @@ class AdvancedModelTrainer:
                 print(f"📊 Test R² Score: {r2:.4f}")
                 print(f"📊 RMSE: {rmse:.4f}")
                 
-                # Cross-validation score
-                cv_scores = cross_val_score(best_model, X, y, cv=5, scoring='r2')
-                cv_mean = cv_scores.mean()
-                print(f"🔄 Cross-validation R²: {cv_mean:.4f} ± {cv_scores.std()*2:.4f}")
+                # Cross-validation score (only available with file-based training)
+                if X_train is not None and y_train is not None:
+                    # For pre-processed data, combine train and test for CV
+                    X_combined = np.vstack([X_train, X_test])
+                    y_combined = np.hstack([y_train, y_test])
+                    cv_scores = cross_val_score(best_model, X_combined, y_combined, cv=5, scoring='r2')
+                    cv_mean = cv_scores.mean()
+                    print(f"🔄 Cross-validation R²: {cv_mean:.4f} ± {cv_scores.std()*2:.4f}")
+                else:
+                    # File-based training
+                    cv_scores = cross_val_score(best_model, X, y, cv=5, scoring='r2')
+                    cv_mean = cv_scores.mean()
+                    print(f"🔄 Cross-validation R²: {cv_mean:.4f} ± {cv_scores.std()*2:.4f}")
                 
                 performance = {
                     'r2_score': r2,
@@ -636,27 +678,56 @@ class AdvancedModelTrainer:
             preprocessing_filename = f"preprocessing_{timestamp}.pkl"
             preprocessing_path = os.path.join(model_folder, preprocessing_filename)
             
+            # Create preprocessing info if not available (for pre-processed data mode)
+            if X_train is not None and 'preprocessing_info' not in locals():
+                preprocessing_info = {
+                    'mode': 'pre_processed',
+                    'feature_count': X_train.shape[1],
+                    'timestamp': datetime.now().isoformat()
+                }
+            
             with open(preprocessing_path, 'wb') as f:
                 pickle.dump(preprocessing_info, f)
             
             # Save model metadata
-            metadata = {
-                'model_name': model_name,
-                'problem_type': problem_type,
-                'target_column': target_column,
-                'feature_names': feature_names,
-                'training_date': datetime.now().isoformat(),
-                'dataset_info': {
-                    'total_samples': len(df),
-                    'features': len(feature_names),
-                    'target_unique_values': unique_targets
-                },
-                'performance': performance,
-                'model_file': model_filename,
-                'preprocessing_file': preprocessing_filename,
-                'main_score': main_score,
-                'score_name': score_name
-            }
+            if X_train is not None:
+                # Pre-processed data mode
+                metadata = {
+                    'model_name': model_name,
+                    'problem_type': problem_type,
+                    'target_column': target_column if target_column else 'target',
+                    'feature_names': [f'feature_{i}' for i in range(X_train.shape[1])],
+                    'training_date': datetime.now().isoformat(),
+                    'dataset_info': {
+                        'total_samples': X_train.shape[0] + X_test.shape[0],
+                        'features': X_train.shape[1],
+                        'target_unique_values': len(np.unique(np.hstack([y_train, y_test])))
+                    },
+                    'performance': performance,
+                    'model_file': model_filename,
+                    'preprocessing_file': preprocessing_filename,
+                    'main_score': main_score,
+                    'score_name': score_name
+                }
+            else:
+                # File-based mode
+                metadata = {
+                    'model_name': model_name,
+                    'problem_type': problem_type,
+                    'target_column': target_column,
+                    'feature_names': feature_names,
+                    'training_date': datetime.now().isoformat(),
+                    'dataset_info': {
+                        'total_samples': len(df),
+                        'features': len(feature_names),
+                        'target_unique_values': unique_targets
+                    },
+                    'performance': performance,
+                    'model_file': model_filename,
+                    'preprocessing_file': preprocessing_filename,
+                    'main_score': main_score,
+                    'score_name': score_name
+                }
             
             metadata_filename = f"metadata_{timestamp}.json"
             metadata_path = os.path.join(model_folder, metadata_filename)
