@@ -520,11 +520,11 @@ export default function VisualizationPage() {
           parameters: params
         })
       });
-
       const result = await response.json();
       console.log('📊 Visualization response:', result);
 
       if (result.success && result.visualization) {
+        
         setCurrentVisualization(result.visualization);
         console.log('✅ Visualization set successfully');
       } else {
@@ -761,10 +761,13 @@ export default function VisualizationPage() {
                     transition={{ duration: 0.5 }}
                     className="visualization-container w-full h-full overflow-auto"
                     style={{ minHeight: '400px' }}
-                  >
-                    <div 
-                      dangerouslySetInnerHTML={{ __html: currentVisualization.html }}
-                      className="w-full h-full [&>div]:!bg-transparent [&_svg]:!bg-transparent"
+                  > 
+                    <iframe
+                      srcDoc={currentVisualization.html}
+                      className="w-full h-full border-0 rounded-lg"
+                      style={{ minHeight: '500px', backgroundColor: 'transparent' }}
+                      sandbox="allow-scripts allow-same-origin"
+                      title="Visualization"
                     />
                   </motion.div>
                 ) : currentVisualization && !currentVisualization.success ? (
