@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Activity, CheckCircle, Loader2, TrendingUp, Target, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 
 /**
@@ -71,7 +70,7 @@ function MetricCard({ title, value, icon: Icon, color, format = 'percentage' }: 
  * Training Status Page - Shows real-time training progress and metrics
  */
 export default function TrainingStatusPage() {
-  const router = useRouter();
+  // const router = useRouter(); // Commented out as not currently used
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [accuracy, setAccuracy] = useState(0);
   const [precision, setPrecision] = useState(0);
@@ -310,7 +309,7 @@ export default function TrainingStatusPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gray-50" style={{paddingTop: '120px', paddingBottom: '48px'}}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
