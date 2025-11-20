@@ -1224,18 +1224,19 @@ def make_prediction():
         import glob
         import os
         
-        # First try to find models using the new folder format
-        model_folders = glob.glob(f"{app.config['MODEL_STORAGE_PATH']}/*_*")
-        model_folders = [f for f in model_folders if os.path.isdir(f)]
+        # Look for all model folders (both timestamped folders and regular folders)
+        all_model_folders = glob.glob(f"{app.config['MODEL_STORAGE_PATH']}/*")
+        all_model_folders = [f for f in all_model_folders if os.path.isdir(f)]
         
-        if not model_folders:
+        if not all_model_folders:
             return jsonify({
                 'success': False,
                 'error': 'No trained models found. Please train a model first.'
             }), 404
         
-        # Sort by timestamp (most recent first) - extract timestamp from folder name
-        def get_timestamp(folder_path):
+        # Function to get the most recent model within a folder
+        def get_folder_timestamp(folder_path):
+            # First check if folder name has timestamp
             folder_name = os.path.basename(folder_path)
             parts = folder_name.split('_')
             if len(parts) >= 2:
@@ -1247,24 +1248,39 @@ def make_prediction():
                         return f"{parts[-2]}_{timestamp_part}"  # YYYYMMDD_HHMMSS format
                     else:
                         return f"20251115_{timestamp_part}"  # Default to today's date
-                return "00000000_000000"  # Invalid format
-            return "00000000_000000"  # No timestamp
+            
+            # If no timestamp in folder name, check for timestamped files within
+            metadata_files = glob.glob(os.path.join(folder_path, 'metadata_*.json'))
+            if metadata_files:
+                # Extract timestamp from most recent metadata file
+                timestamps = []
+                for mf in metadata_files:
+                    basename = os.path.basename(mf)
+                    if basename.startswith('metadata_') and basename.endswith('.json'):
+                        ts_part = basename[9:-5]  # Remove 'metadata_' and '.json'
+                        timestamps.append(ts_part)
+                if timestamps:
+                    timestamps.sort(reverse=True)
+                    return timestamps[0]
+            
+            return "00000000_000000"  # No timestamp found
         
-        # Filter out old models without proper timestamps
-        timestamped_models = []
-        for folder in model_folders:
-            ts = get_timestamp(folder)
+        # Get all folders with their timestamps and sort by most recent
+        folder_timestamps = []
+        for folder in all_model_folders:
+            ts = get_folder_timestamp(folder)
             if ts != "00000000_000000":
-                timestamped_models.append(folder)
+                folder_timestamps.append((folder, ts))
         
-        if not timestamped_models:
+        if not folder_timestamps:
             return jsonify({
                 'success': False,
                 'error': 'No valid trained models found. Please train a model first.'
             }), 404
         
-        timestamped_models.sort(key=get_timestamp, reverse=True)
-        model_folder = timestamped_models[0]
+        # Sort by timestamp (most recent first)
+        folder_timestamps.sort(key=lambda x: x[1], reverse=True)
+        model_folder = folder_timestamps[0][0]
         
         print(f"🔍 Using model folder: {model_folder}")
         
