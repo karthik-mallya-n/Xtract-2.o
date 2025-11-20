@@ -508,10 +508,15 @@ def start_training():
         
         print(f"🎯 Target column: {target_column}")
         
-        # Train the model
-        result = ml_core.train_advanced_model(
-            model_name=model_name,
+        # Train the model using comprehensive preprocessing pipeline
+        print(f"\n{'='*100}")
+        print(f"🚀 STARTING SPECIFIC MODEL TRAINING WITH COMPREHENSIVE PREPROCESSING")
+        print(f"{'='*100}\n")
+        
+        result = ml_core.train_specific_model(
             file_path=file_path,
+            model_name=model_name,
+            user_data=user_answers,
             target_column=target_column
         )
         
@@ -520,37 +525,38 @@ def start_training():
         file_info['selected_model'] = model_name
         file_info['training_result'] = result
         
-        print(f"Training completed successfully: {result}")
+        print(f"\n{'='*100}")
+        print(f"✅ TRAINING API ENDPOINT COMPLETE")
+        print(f"{'='*100}")
+        print(f"Result: {result.get('success', False)}")
+        if result.get('success'):
+            print(f"Performance: {result.get('performance', {})}")
+        print(f"{'='*100}\n")
         
-        # Get feature information from the saved model for frontend display
+        # Get feature information from the training result
         feature_info = {}
-        if result['success'] and 'model_folder' in result:
+        if result.get('success') and result.get('model_info'):
+            model_info = result['model_info']
+            model_dir = model_info.get('model_directory', '')
+            artifacts = model_info.get('artifacts', {})
+            
+            # Try to load feature info from the saved artifacts
             try:
-                # Check for metadata.json in the model folder
-                metadata_path = f"{result['model_folder']}/metadata.json"
-                if os.path.exists(metadata_path):
-                    import json
-                    with open(metadata_path, 'r') as f:
-                        metadata = json.load(f)
-                    feature_info = {
-                        'feature_names': metadata.get('feature_names', []),
-                        'target_column': metadata.get('target_column', target_column),
-                        'problem_type': metadata.get('problem_type', 'classification')
-                    }
-                    print(f"📊 Feature info loaded from metadata: {len(feature_info.get('feature_names', []))} features")
-                else:
-                    # Try legacy .joblib file format
-                    model_path = f"{result['model_folder']}.joblib"
-                    if os.path.exists(model_path):
-                        saved_model_data = joblib.load(model_path)
+                if artifacts.get('feature_info'):
+                    feature_info_path = os.path.join(model_dir, artifacts['feature_info'])
+                    if os.path.exists(feature_info_path):
+                        with open(feature_info_path, 'r') as f:
+                            feature_data = json.load(f)
                         feature_info = {
-                            'feature_names': saved_model_data.get('feature_names', []),
-                            'target_column': saved_model_data.get('target_column', target_column),
-                            'problem_type': saved_model_data.get('problem_type', 'classification')
+                            'feature_names': feature_data.get('feature_names', []),
+                            'target_column': feature_data.get('target_column', target_column),
+                            'problem_type': result.get('performance', {}).get('model_type', 'classification')
                         }
-                        print(f"📊 Feature info loaded from joblib: {len(feature_info.get('feature_names', []))} features")
+                        print(f"📊 Feature info loaded from artifacts: {len(feature_info.get('feature_names', []))} features")
+                    else:
+                        raise FileNotFoundError(f"Feature info file not found: {feature_info_path}")
             except Exception as e:
-                print(f"⚠️ Could not load feature info: {e}")
+                print(f"⚠️ Could not load feature info from artifacts: {e}")
                 # Fallback: extract feature names from the dataset
                 try:
                     import pandas as pd
@@ -559,12 +565,26 @@ def start_training():
                     feature_info = {
                         'feature_names': feature_names,
                         'target_column': target_column,
-                        'problem_type': 'classification' if temp_df[target_column].nunique() <= 20 else 'regression'
+                        'problem_type': result.get('performance', {}).get('model_type', 'classification')
                     }
                     print(f"📊 Feature info from dataset: {len(feature_names)} features")
                 except Exception as inner_e:
                     print(f"❌ Could not extract features: {inner_e}")
                     feature_info = {'feature_names': [], 'target_column': target_column, 'problem_type': 'classification'}
+        else:
+            # Training failed or no model_info, fallback to dataset
+            try:
+                import pandas as pd
+                temp_df = pd.read_csv(file_path)
+                feature_names = [col for col in temp_df.columns if col != target_column]
+                feature_info = {
+                    'feature_names': feature_names,
+                    'target_column': target_column,
+                    'problem_type': 'classification'
+                }
+            except Exception as e:
+                print(f"❌ Could not extract features from dataset: {e}")
+                feature_info = {'feature_names': [], 'target_column': target_column, 'problem_type': 'classification'}
         
         return jsonify({
             'success': True,
@@ -572,7 +592,7 @@ def start_training():
             'model_name': model_name,
             'result': result,
             'feature_info': feature_info,
-            'message': 'Training completed successfully'
+            'message': 'Training completed successfully with comprehensive preprocessing!'
         })
     
     except Exception as e:
@@ -715,6 +735,173 @@ def train_recommended_model():
     
     except Exception as e:
         print(f"❌ Error in train_recommended_model: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to train model: {str(e)}'
+        }), 500
+
+@app.route('/api/train-specific-model', methods=['POST'])
+def train_specific_model_endpoint():
+    """
+    Train a specific model selected by the user with comprehensive preprocessing
+    
+    Expected JSON body:
+    - file_id: ID of uploaded file
+    - model_name: Name of the specific model to train (e.g., "Random Forest", "XGBoost")
+    - target_column: (optional) Name of the target column
+    
+    Returns:
+    - JSON response with detailed training results and performance metrics
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON body is required'
+            }), 400
+        
+        file_id = data.get('file_id')
+        model_name = data.get('model_name')
+        target_column = data.get('target_column')
+        
+        if not file_id:
+            return jsonify({
+                'success': False,
+                'error': 'file_id is required'
+            }), 400
+        
+        if not model_name:
+            return jsonify({
+                'success': False,
+                'error': 'model_name is required'
+            }), 400
+        
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found. Please upload a file first.'
+            }), 404
+        
+        file_info = uploaded_files[file_id]
+        file_path = file_info['file_path']
+        user_answers = file_info['user_answers']
+        
+        print(f"\n{'='*100}")
+        print(f"🚀 TRAINING SPECIFIC MODEL ENDPOINT")
+        print(f"{'='*100}")
+        print(f"📂 File ID: {file_id}")
+        print(f"📂 File path: {file_path}")
+        print(f"🎯 Model name: {model_name}")
+        print(f"🎯 Target column: {target_column if target_column else 'Auto-detect (last column)'}")
+        print(f"👤 User data: {user_answers}")
+        print(f"{'='*100}\n")
+        
+        # Train the specific model with comprehensive preprocessing
+        training_results = ml_core.train_specific_model(
+            file_path=file_path,
+            model_name=model_name,
+            user_data=user_answers,
+            target_column=target_column
+        )
+        
+        if training_results.get('success'):
+            # Store training results in file_info
+            file_info['specific_model_training'] = training_results
+            file_info['specific_model_trained'] = True
+            file_info['specific_model_name'] = model_name
+            file_info['specific_training_completed'] = datetime.now().isoformat()
+            
+            print(f"\n{'='*100}")
+            print(f"✅ ENDPOINT: MODEL TRAINING SUCCESSFUL")
+            print(f"{'='*100}")
+            print(f"🎯 Model: {model_name}")
+            print(f"📊 Performance: {training_results.get('performance', {})}")
+            print(f"📁 Model directory: {training_results.get('model_info', {}).get('model_directory', 'N/A')}")
+            print(f"{'='*100}\n")
+            
+            # Extract feature information for the frontend by reading the actual data
+            feature_info = training_results.get('feature_info', {})
+            if not feature_info.get('feature_names'):
+                # Try to extract from other locations
+                if training_results.get('model_info', {}).get('feature_names'):
+                    feature_info['feature_names'] = training_results['model_info']['feature_names']
+                elif training_results.get('training_details', {}).get('feature_names'):
+                    feature_info['feature_names'] = training_results['training_details']['feature_names']
+                else:
+                    # Extract feature names directly from the dataset
+                    try:
+                        import pandas as pd
+                        df = pd.read_csv(file_path)
+                        
+                        # Determine target column
+                        actual_target = target_column if target_column else df.columns[-1]
+                        
+                        # Get feature names (all columns except target)
+                        feature_names = [col for col in df.columns if col != actual_target]
+                        
+                        feature_info = {
+                            'feature_names': feature_names,
+                            'target_column': actual_target,
+                            'problem_type': training_results.get('problem_type', 'classification'),
+                            'total_features': len(feature_names),
+                            'dataset_shape': df.shape
+                        }
+                        
+                        print(f"🔍 EXTRACTED FEATURE INFO:")
+                        print(f"📊 Features: {feature_names}")
+                        print(f"🎯 Target: {actual_target}")
+                        
+                    except Exception as e:
+                        print(f"⚠️ Feature extraction failed: {str(e)}")
+                        feature_info = {}
+            
+            return jsonify({
+                'success': True,
+                'training_results': training_results,
+                'message': f'{model_name} trained successfully with comprehensive preprocessing!',
+                'model_info': training_results.get('model_info', {}),
+                'performance': training_results.get('performance', {}),
+                'feature_info': feature_info,  # Add feature info for frontend
+                'file_info': {
+                    'file_id': file_id,
+                    'filename': file_info['original_filename'],
+                    'target_column': target_column
+                },
+                'training_details': {
+                    **training_results.get('training_details', {}),  # Base training details
+                    **training_results.get('performance', {}),       # Merge performance metrics for UI
+                    'target_column': target_column,  # Ensure target column is available
+                    'test_split': 0.2,  # Default test split info
+                    'problem_type': training_results.get('problem_type', 'classification')
+                }
+            })
+        else:
+            error_msg = training_results.get('error', 'Training failed')
+            print(f"\n{'='*100}")
+            print(f"❌ ENDPOINT: MODEL TRAINING FAILED")
+            print(f"{'='*100}")
+            print(f"Error: {error_msg}")
+            print(f"{'='*100}\n")
+            
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 500
+    
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        
+        print(f"\n{'='*100}")
+        print(f"❌ ENDPOINT ERROR: EXCEPTION IN train_specific_model_endpoint")
+        print(f"{'='*100}")
+        print(f"Error: {str(e)}")
+        print(f"Traceback:\n{error_traceback}")
+        print(f"{'='*100}\n")
+        
         return jsonify({
             'success': False,
             'error': f'Failed to train model: {str(e)}'
@@ -983,9 +1170,9 @@ def make_prediction():
     """
     Make predictions using a trained model
     
-    Expected JSON body:
-    - file_id: ID of the dataset used for training
-    - input_data: Dictionary with feature values
+    Expected JSON body formats:
+    Format 1: {"file_id": "...", "input_data": {...}}
+    Format 2: {"features": [1.5, 2.3, ...]}
     
     Returns:
     - JSON response with prediction results
@@ -994,25 +1181,44 @@ def make_prediction():
         data = request.get_json()
         
         if not data:
+            print("❌ PREDICTION ERROR: No JSON body received")
             return jsonify({
                 'success': False,
                 'error': 'JSON body is required'
             }), 400
         
-        file_id = data.get('file_id')
-        input_data = data.get('input_data', {})
+        print(f"🔍 PREDICTION REQUEST: {data}")
         
-        if not file_id:
-            return jsonify({
-                'success': False,
-                'error': 'file_id is required'
-            }), 400
-        
-        if not input_data:
-            return jsonify({
-                'success': False,
-                'error': 'input_data is required'
-            }), 400
+        # Handle both request formats
+        if 'features' in data:
+            # Format 2: Direct features array (from React frontend)
+            features_array = data.get('features', [])
+            print(f"📊 Features array received: {len(features_array)} features")
+            if not features_array:
+                return jsonify({
+                    'success': False,
+                    'error': 'features array is required'
+                }), 400
+            
+            # We'll map features to proper names after loading metadata
+            input_data = None  # Will be set after metadata loading
+            file_id = None  # Will find the most recent model
+        else:
+            # Format 1: Original format
+            file_id = data.get('file_id')
+            input_data = data.get('input_data', {})
+            
+            if not file_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'file_id is required'
+                }), 400
+            
+            if not input_data:
+                return jsonify({
+                    'success': False,
+                    'error': 'input_data is required'
+                }), 400
         
         # Find the most recent model folder for this file_id (new pipeline format)
         import glob
@@ -1063,19 +1269,44 @@ def make_prediction():
         print(f"🔍 Using model folder: {model_folder}")
         
         # Load metadata to get feature information
-        metadata_path = os.path.join(model_folder, 'metadata.json')
-        if not os.path.exists(metadata_path):
-            return jsonify({
-                'success': False,
-                'error': 'Model metadata not found. Model may be corrupted.'
-            }), 500
+        metadata_files = glob.glob(os.path.join(model_folder, 'metadata_*.json'))
+        if not metadata_files:
+            # Fallback to old format
+            metadata_path = os.path.join(model_folder, 'metadata.json')
+            if not os.path.exists(metadata_path):
+                return jsonify({
+                    'success': False,
+                    'error': 'Model metadata not found. Model may be corrupted.'
+                }), 500
+        else:
+            # Use the most recent metadata file
+            metadata_files.sort(reverse=True)
+            metadata_path = metadata_files[0]
         
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
         
-        feature_names = metadata['feature_names']
-        target_column = metadata['target_column']
-        problem_type = metadata['problem_type']
+        feature_names = metadata.get('feature_names', [])
+        target_column = metadata.get('target_column', 'target')
+        problem_type = metadata.get('model_type', metadata.get('problem_type', 'regression'))
+        
+        # Now map features array to proper feature names if needed
+        if 'features' in data and input_data is None:
+            features_array = data.get('features', [])
+            # Get features excluding target column for prediction
+            features_for_prediction = [f for f in feature_names if f != target_column]
+            
+            if len(features_array) != len(features_for_prediction):
+                print(f"⚠️  Feature count mismatch: received {len(features_array)}, expected {len(features_for_prediction)}")
+                print(f"⚠️  Expected features: {features_for_prediction}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Feature count mismatch. Expected {len(features_for_prediction)} features, got {len(features_array)}. Expected features: {features_for_prediction}'
+                }), 400
+            
+            # Map features array to actual feature names
+            input_data = {feature_name: features_array[i] for i, feature_name in enumerate(features_for_prediction)}
+            print(f"🔄 Mapped input data: {input_data}")
         
         print(f"📊 Features: {feature_names}")
         print(f"🎯 Target: {target_column}")
@@ -1088,14 +1319,16 @@ def make_prediction():
         # Create DataFrame from input data with proper feature names
         input_df = pd.DataFrame([input_data])
         
+        # Get features for prediction (excluding target)
+        features_for_prediction = [f for f in feature_names if f != target_column]
+        
         # Ensure all required features are present
-        for feature in feature_names:
+        for feature in features_for_prediction:
             if feature not in input_df.columns:
                 print(f"⚠️  Missing feature '{feature}', setting to 0")
                 input_df[feature] = 0
         
         # Select and order features correctly (excluding target column)
-        features_for_prediction = [f for f in feature_names if f != target_column]
         input_df = input_df[features_for_prediction]
         
         print(f"🔄 Input data shape: {input_df.shape}")
@@ -1103,31 +1336,60 @@ def make_prediction():
         
         # Use direct model loading (bypass advanced_model_trainer for compatibility)
         try:
-            # Load the pipeline model directly
-            model_path = os.path.join(model_folder, 'model.pkl')
-            if not os.path.exists(model_path):
-                return jsonify({
-                    'success': False,
-                    'error': 'Model file not found. Model may be corrupted.'
-                }), 500
+            # Load the pipeline model directly - check for multiple possible filenames
+            model_files = glob.glob(os.path.join(model_folder, 'model_*.joblib'))
+            print(f"🔍 Found model files: {model_files}")
+            
+            if not model_files:
+                # Fallback to old format
+                model_path = os.path.join(model_folder, 'model.pkl')
+                print(f"🔍 Checking fallback: {model_path}")
+                if not os.path.exists(model_path):
+                    model_path = os.path.join(model_folder, 'model.joblib')
+                    print(f"🔍 Checking fallback 2: {model_path}")
+                    if not os.path.exists(model_path):
+                        print(f"❌ No model files found in {model_folder}")
+                        return jsonify({
+                            'success': False,
+                            'error': 'Model file not found. Model may be corrupted.'
+                        }), 500
+            else:
+                # Use the most recent model file
+                model_files.sort(reverse=True)
+                model_path = model_files[0]
+            
+            print(f"📁 Loading model from: {model_path}")
             
             # Load the trained pipeline
             import joblib
             pipeline = joblib.load(model_path)
             
             print(f"✅ Pipeline loaded successfully: {type(pipeline)}")
+            print(f"📊 Pipeline steps: {getattr(pipeline, 'steps', 'N/A')}")
+            
+            # Debug input data shape and content
+            print(f"📥 Input DataFrame:")
+            print(input_df.head())
+            print(f"📊 Input shape: {input_df.shape}")
+            print(f"🔧 Input dtypes: {input_df.dtypes.to_dict()}")
             
             # Make prediction using the pipeline directly
+            print("🔮 Making prediction...")
             predictions = pipeline.predict(input_df)
             prediction = predictions[0] if len(predictions) > 0 else 0
             
-            print(f"✅ Prediction: {prediction}")
+            print(f"✅ Prediction result: {prediction}")
+            print(f"✅ Prediction type: {type(prediction)}")
             
         except Exception as e:
+            import traceback
+            full_error = traceback.format_exc()
             print(f"❌ Prediction error: {str(e)}")
+            print(f"❌ Full traceback:\n{full_error}")
             return jsonify({
                 'success': False,
-                'error': f'Prediction failed: {str(e)}'
+                'error': f'Prediction failed: {str(e)}',
+                'debug_info': full_error
             }), 500
         
         # For classification, prediction is already the class label
@@ -1143,7 +1405,7 @@ def make_prediction():
             'model_info': {
                 'model_name': metadata.get('model_name', 'Unknown'),
                 'training_date': metadata.get('timestamp', ''),
-                'accuracy': metadata.get('performance', {}).get('accuracy', metadata.get('performance', {}).get('r2_score', 0))
+                'accuracy': metadata.get('test_score', metadata.get('performance', {}).get('accuracy', metadata.get('performance', {}).get('r2_score', 0)))
             },
             'input_data': input_data,
             'feature_info': {
