@@ -2,7 +2,7 @@
 Flask==2.3.3
 Flask-CORS==4.0.0
 
-# Data Processing and Machine Learning
+# Data Processing and Machine Learning Core
 pandas==2.1.1
 scikit-learn==1.3.0
 numpy==1.24.3
@@ -25,10 +25,102 @@ redis==4.6.0
 Werkzeug==2.3.7
 click==8.1.7
 
-# Advanced ML Libraries (optional but recommended for 90%+ accuracy)
+# Advanced ML Libraries for High Accuracy Models
 xgboost>=1.7.0
 lightgbm>=3.3.0
+catboost>=1.2.0
+
+# Clustering and Dimensionality Reduction
+umap-learn>=0.5.0
+hdbscan>=0.8.0
+
+# Deep Learning and Neural Networks
+tensorflow>=2.13.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Additional ML Utilities
+imbalanced-learn>=0.11.0
+feature-engine>=1.6.0
+optuna>=3.3.0
+
+# Statistical Analysis
+scipy>=1.11.0
+statsmodels>=0.14.0
+
+# Visualization and Plotting
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# Data Validation and Quality
+pydantic>=2.0.0
+great-expectations>=0.17.0
+
+# Performance Monitoring
+psutil>=5.9.0
+memory-profiler>=0.61.0
 
 # For development and testing (optional)
 pytest==7.4.0
 pytest-flask==1.2.0
+pytest-cov==4.1.0
+
+# Security and Authentication
+cryptography>=41.0.0
+PyJWT>=2.8.0
+
+# File Processing
+openpyxl>=3.1.0
+xlrd>=2.0.1
+h5py>=3.9.0
+
+# Time Series Analysis
+prophet>=1.1.4
+pmdarima>=2.0.3
+
+# Natural Language Processing (if needed)
+nltk>=3.8.0
+spacy>=3.6.0
+
+# Computer Vision (if needed)
+opencv-python>=4.8.0
+Pillow>=10.0.0
+
+# Hyperparameter Tuning
+hyperopt>=0.2.7
+bayesian-optimization>=1.4.0
+
+# Model Interpretation and Explainability
+shap>=0.42.0
+lime>=0.2.0
+eli5>=0.13.0
+
+# Advanced Ensemble Methods
+mlxtend>=0.22.0
+vecstack>=0.4.0
+
+# Time Series Forecasting
+sktime>=0.21.0
+tsfresh>=0.20.0
+
+# Automated ML
+auto-sklearn>=0.15.0
+tpot>=0.12.0
+
+# Model Versioning and MLOps
+mlflow>=2.6.0
+dvc>=3.0.0
+
+# GPU Acceleration (optional)
+cupy-cuda11x>=12.0.0; sys_platform != "darwin"
+cudf-cu11>=23.0.0; sys_platform != "darwin"
+
+# Memory and Performance Optimization
+numba>=0.57.0
+dask>=2023.8.0
+
+# Additional Data Sources
+sqlalchemy>=2.0.0
+pymongo>=4.4.0
+psycopg2-binary>=2.9.0

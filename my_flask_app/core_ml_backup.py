@@ -1,4 +1,4 @@
-﻿"""
+"""
 Core Machine Learning Module
 Contains the main ML logic for model recommendations and data processing.
 """
@@ -53,9 +53,9 @@ class MLCore:
         # Initialize the advanced model trainer
         self.advanced_trainer = AdvancedModelTrainer(base_models_dir="models")
         
-        print(f"Γ£à MLCore initialized with Google AI Studio (Gemini 2.5 Flash)")
-        print(f"≡ƒöæ API Key: {self.google_api_key[:10]}...{self.google_api_key[-4:]}")
-        print(f"≡ƒñû Advanced Model Trainer initialized")
+        print(f"✅ MLCore initialized with Google AI Studio (Gemini 2.5 Flash)")
+        print(f"🔑 API Key: {self.google_api_key[:10]}...{self.google_api_key[-4:]}")
+        print(f"🤖 Advanced Model Trainer initialized")
     
     def analyze_dataset(self, file_path: str, sample_size: int = 20) -> Dict[str, Any]:
         """
@@ -214,16 +214,16 @@ Provide practical, actionable recommendations based on the actual data character
         """
         
         try:
-            print(f"\n≡ƒñû MAKING REQUEST TO GOOGLE AI STUDIO")
+            print(f"\n🤖 MAKING REQUEST TO GOOGLE AI STUDIO")
             print("="*80)
             
             # Log the data being sent
-            print(f"≡ƒôñ DATA BEING SENT TO GOOGLE AI STUDIO:")
-            print(f"   ≡ƒæñ User Answers: {user_answers}")
-            print(f"   ≡ƒôè Dataset Info: {dataset_analysis['total_rows']} rows, {dataset_analysis['total_columns']} columns")
-            print(f"   ≡ƒöó Numeric columns: {dataset_analysis['numeric_columns']}")
-            print(f"   ≡ƒô¥ Categorical columns: {dataset_analysis['categorical_columns']}")
-            print(f"   ≡ƒôï First 20 rows length: {len(dataset_analysis['first_20_rows_csv'])} characters")
+            print(f"📤 DATA BEING SENT TO GOOGLE AI STUDIO:")
+            print(f"   👤 User Answers: {user_answers}")
+            print(f"   📊 Dataset Info: {dataset_analysis['total_rows']} rows, {dataset_analysis['total_columns']} columns")
+            print(f"   🔢 Numeric columns: {dataset_analysis['numeric_columns']}")
+            print(f"   📝 Categorical columns: {dataset_analysis['categorical_columns']}")
+            print(f"   📋 First 20 rows length: {len(dataset_analysis['first_20_rows_csv'])} characters")
             
             # Create persona-based prompt
             target_type = "categorical" if user_answers.get('data_type') == 'categorical' else "continuous"
@@ -234,19 +234,19 @@ Provide practical, actionable recommendations based on the actual data character
 
 Your task is to analyze this dataset and provide comprehensive model recommendations based on the four fundamental scenarios in machine learning.
 
-≡ƒÄ» **Scenario 1: Labeled + Continuous (Regression)**
+🎯 **Scenario 1: Labeled + Continuous (Regression)**
 Task: Predict a continuous numerical value
 ALL Models: Linear Regression, Lasso Regression, Ridge Regression, ElasticNet, Support Vector Regression (SVR), K-Nearest Neighbors (KNN) Regressor, Decision Tree Regressor, Random Forest Regressor, Gradient Boosting Regressor, XGBoost Regressor, LightGBM Regressor, CatBoost Regressor, Neural Networks (MLP Regressor)
 
-≡ƒÅ╖∩╕Å **Scenario 2: Labeled + Categorical (Classification)**  
+🏷️ **Scenario 2: Labeled + Categorical (Classification)**  
 Task: Predict a discrete class label
 ALL Models: Logistic Regression, Support Vector Machines (SVM), K-Nearest Neighbors (KNN) Classifier, Naive Bayes, Decision Tree Classifier, Random Forest Classifier, Gradient Boosting Classifier, XGBoost Classifier, LightGBM Classifier, CatBoost Classifier, Neural Networks (MLP Classifier)
 
-≡ƒº⌐ **Scenario 3: Unlabeled + Continuous (Clustering/Dimensionality Reduction)**
+🧩 **Scenario 3: Unlabeled + Continuous (Clustering/Dimensionality Reduction)**
 Task: Find hidden groups or simplify data
 ALL Models: K-Means Clustering, DBSCAN, Hierarchical Clustering, Gaussian Mixture Model (GMM), Principal Component Analysis (PCA), t-SNE, UMAP, Isolation Forest, One-Class SVM
 
-≡ƒöù **Scenario 4: Unlabeled + Categorical (Clustering/Association Rules)**
+🔗 **Scenario 4: Unlabeled + Categorical (Clustering/Association Rules)**
 Task: Group similar items or find association rules
 ALL Models: K-Modes Clustering, Hierarchical Clustering (Hamming distance), Apriori Algorithm, FP-Growth Algorithm, Eclat Algorithm, Multiple Correspondence Analysis (MCA)
 
@@ -320,10 +320,10 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 first_20_rows_csv=dataset_analysis['first_20_rows_csv']
             )
             
-            print(f"≡ƒôñ SENDING REQUEST TO GEMINI 2.5 FLASH")
-            print(f"≡ƒôï Prompt length: {len(prompt)} characters")
-            print(f"≡ƒöù Model: Gemini 2.5 Flash (Optimized for Complete Responses)")
-            print(f"≡ƒôÅ Max Output Tokens: {self.generation_config['max_output_tokens']}")
+            print(f"📤 SENDING REQUEST TO GEMINI 2.5 FLASH")
+            print(f"📋 Prompt length: {len(prompt)} characters")
+            print(f"🔗 Model: Gemini 2.5 Flash (Optimized for Complete Responses)")
+            print(f"📏 Max Output Tokens: {self.generation_config['max_output_tokens']}")
             
             # Make the request to Gemini with full configuration
             response = self.genai_model.generate_content(
@@ -332,19 +332,19 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             )
             raw_response = response.text
             
-            print(f"\n≡ƒôÑ RECEIVED RESPONSE FROM GOOGLE AI STUDIO:")
-            print(f"   Γ£à Response received successfully")
-            print(f"   ≡ƒôÅ Response length: {len(raw_response)} characters")
+            print(f"\n📥 RECEIVED RESPONSE FROM GOOGLE AI STUDIO:")
+            print(f"   ✅ Response received successfully")
+            print(f"   📏 Response length: {len(raw_response)} characters")
             
             # Enhanced logging for terminal
             print("\n" + "="*80)
-            print("≡ƒñû GEMINI MODEL RECOMMENDATION RESPONSE")
+            print("🤖 GEMINI MODEL RECOMMENDATION RESPONSE")
             print("="*80)
             print(f"Target Variable Type: {target_type.title()}")
             print(f"Dataset Columns: {dataset_analysis['total_columns']} columns")
             print(f"Dataset Rows: {dataset_analysis['total_rows']} rows")
             
-            print(f"\n≡ƒôï RAW GEMINI RESPONSE:")
+            print(f"\n📋 RAW GEMINI RESPONSE:")
             print("-" * 50)
             print(raw_response)
             print("-" * 50)
@@ -356,8 +356,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 
                 # Check if response seems incomplete (no closing brace)
                 if not cleaned_response.endswith('}'):
-                    print(f"ΓÜá∩╕Å Response appears incomplete - missing closing brace")
-                    print(f"≡ƒôÅ Response ends with: '...{cleaned_response[-50:]}'")
+                    print(f"⚠️ Response appears incomplete - missing closing brace")
+                    print(f"📏 Response ends with: '...{cleaned_response[-50:]}'")
                 
                 # Remove markdown code blocks if present
                 if "```json" in cleaned_response:
@@ -381,7 +381,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 
                 # Try to fix incomplete JSON by adding missing parts
                 if cleaned_response and not cleaned_response.endswith('}'):
-                    print(f"≡ƒöº Attempting to fix incomplete JSON...")
+                    print(f"🔧 Attempting to fix incomplete JSON...")
                     
                     # Fix incomplete expected_accuracy field (most common truncation)
                     if '"expected_accuracy": "' in cleaned_response:
@@ -396,7 +396,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                                     cleaned_response += '%"'
                                 else:
                                     cleaned_response += '"'
-                                print(f"≡ƒöº Fixed incomplete accuracy field")
+                                print(f"🔧 Fixed incomplete accuracy field")
                     
                     # Fix incomplete reasoning field
                     if '"reasoning": "' in cleaned_response:
@@ -406,7 +406,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                         closed_reasoning = cleaned_response.count('"reasoning":')
                         if reasoning_count > closed_reasoning:
                             cleaned_response += '"'
-                            print(f"≡ƒöº Fixed incomplete reasoning field")
+                            print(f"🔧 Fixed incomplete reasoning field")
                     
                     # Remove incomplete trailing entry if it exists
                     lines = cleaned_response.split('\n')
@@ -414,7 +414,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                         # Remove the incomplete last line
                         lines = lines[:-1]
                         cleaned_response = '\n'.join(lines)
-                        print(f"≡ƒöº Removed incomplete final entry")
+                        print(f"🔧 Removed incomplete final entry")
                     
                     # Ensure proper array closure
                     if '"recommended_models": [' in cleaned_response and not cleaned_response.count('[') == cleaned_response.count(']'):
@@ -423,7 +423,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                             if cleaned_response.rstrip().endswith(','):
                                 cleaned_response = cleaned_response.rstrip()[:-1]  # Remove trailing comma
                             cleaned_response += '\n  ]'
-                            print(f"≡ƒöº Fixed incomplete array")
+                            print(f"🔧 Fixed incomplete array")
                     
                     # Count opening vs closing braces to determine how many we need
                     open_braces = cleaned_response.count('{')
@@ -433,46 +433,46 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     if missing_braces > 0:
                         # Add missing closing braces
                         cleaned_response += '}' * missing_braces
-                        print(f"≡ƒöº Added {missing_braces} missing closing brace(s)")
+                        print(f"🔧 Added {missing_braces} missing closing brace(s)")
                 
                 parsed_recommendations = json.loads(cleaned_response.strip())
                 
-                print(f"\nΓ£à PARSED RECOMMENDATIONS:")
+                print(f"\n✅ PARSED RECOMMENDATIONS:")
                 print("-" * 50)
                 
                 # Display scenario detection
                 if 'scenario_detected' in parsed_recommendations:
                     scenario = parsed_recommendations['scenario_detected']
-                    print(f"≡ƒÄ» SCENARIO: {scenario.get('type', 'Unknown')}")
-                    print(f"≡ƒô¥ Task: {scenario.get('task', 'Unknown')}")
-                    print(f"≡ƒºá Reasoning: {scenario.get('reasoning', 'No reasoning')}")
+                    print(f"🎯 SCENARIO: {scenario.get('type', 'Unknown')}")
+                    print(f"📝 Task: {scenario.get('task', 'Unknown')}")
+                    print(f"🧠 Reasoning: {scenario.get('reasoning', 'No reasoning')}")
                 
                 # Display semantic analysis
                 if 'semantic_analysis' in parsed_recommendations:
                     semantic = parsed_recommendations['semantic_analysis']
-                    print(f"\n≡ƒöì SEMANTIC ANALYSIS:")
-                    print(f"≡ƒÅó Domain: {semantic.get('domain', 'Unknown')}")
-                    print(f"≡ƒÆí Key Insights: {semantic.get('key_insights', 'No insights')}")
+                    print(f"\n🔍 SEMANTIC ANALYSIS:")
+                    print(f"🏢 Domain: {semantic.get('domain', 'Unknown')}")
+                    print(f"💡 Key Insights: {semantic.get('key_insights', 'No insights')}")
                 
                 # Display ranked models
                 if 'recommended_models' in parsed_recommendations:
                     models = parsed_recommendations['recommended_models']
-                    print(f"\n∩┐╜ RANKED MODELS (by expected accuracy):")
+                    print(f"\n� RANKED MODELS (by expected accuracy):")
                     for model in models:
                         rank = model.get('rank', 'Unknown')
                         name = model.get('name', 'Unknown')
                         accuracy = model.get('expected_accuracy', 'Unknown')
                         print(f"  #{rank}. {name} - {accuracy}")
-                        print(f"      ≡ƒÆ½ Reasoning: {model.get('reasoning', 'No reasoning')}")
-                        print(f"      Γ£à Advantages: {model.get('advantages', 'No advantages')}")
+                        print(f"      💫 Reasoning: {model.get('reasoning', 'No reasoning')}")
+                        print(f"      ✅ Advantages: {model.get('advantages', 'No advantages')}")
                         print()
                 
                 # Display primary recommendation
                 if 'primary_recommendation' in parsed_recommendations:
                     primary = parsed_recommendations['primary_recommendation']
-                    print(f"≡ƒÅå PRIMARY RECOMMENDATION: {primary.get('model', 'Unknown')}")
-                    print(f"≡ƒÄ» Confidence: {primary.get('confidence', 'Unknown')}")
-                    print(f"≡ƒôï Rationale: {primary.get('rationale', 'No rationale')}")
+                    print(f"🏆 PRIMARY RECOMMENDATION: {primary.get('model', 'Unknown')}")
+                    print(f"🎯 Confidence: {primary.get('confidence', 'Unknown')}")
+                    print(f"📋 Rationale: {primary.get('rationale', 'No rationale')}")
                 
                 print("="*80)
                 
@@ -483,8 +483,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 }
                 
             except json.JSONDecodeError as e:
-                print(f"ΓÜá∩╕Å JSON parsing failed: {str(e)}")
-                print(f"≡ƒôä Returning raw response")
+                print(f"⚠️ JSON parsing failed: {str(e)}")
+                print(f"📄 Returning raw response")
                 return {
                     'success': True,
                     'recommendations': {},
@@ -493,7 +493,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 }
             
         except Exception as e:
-            print(f"Γ¥î Error making request to Google AI Studio: {str(e)}")
+            print(f"❌ Error making request to Google AI Studio: {str(e)}")
             return {
                 'success': False,
                 'error': f'API request failed: {str(e)}',
@@ -514,27 +514,27 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             dict: Training results with model performance
         """
         try:
-            print(f"\n≡ƒÜÇ STARTING MODEL TRAINING")
+            print(f"\n🚀 STARTING MODEL TRAINING")
             print("="*80)
             
             # Load the dataset
             df = pd.read_csv(file_path)
-            print(f"≡ƒôè Dataset loaded: {df.shape[0]} rows, {df.shape[1]} columns")
+            print(f"📊 Dataset loaded: {df.shape[0]} rows, {df.shape[1]} columns")
             
             # Get the recommended model
             recommended_model_info = recommendations.get('recommended_model', {})
             model_name = recommended_model_info.get('name', 'Random Forest Classifier')
             
-            print(f"≡ƒÄ» Training Model: {model_name}")
-            print(f"≡ƒô¥ Reasoning: {recommended_model_info.get('reasoning', 'No reasoning provided')}")
+            print(f"🎯 Training Model: {model_name}")
+            print(f"📝 Reasoning: {recommended_model_info.get('reasoning', 'No reasoning provided')}")
             
             # Determine target variable (assume last column is target)
             target_column = df.columns[-1]
             X = df.drop(columns=[target_column])
             y = df[target_column]
             
-            print(f"≡ƒÄ» Target Variable: {target_column}")
-            print(f"≡ƒôè Features: {list(X.columns)}")
+            print(f"🎯 Target Variable: {target_column}")
+            print(f"📊 Features: {list(X.columns)}")
             
             # Handle categorical variables (simple label encoding for now)
             for col in X.select_dtypes(include=['object']).columns:
@@ -542,7 +542,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             # Split the data
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            print(f"≡ƒôè Train size: {X_train.shape[0]}, Test size: {X_test.shape[0]}")
+            print(f"📊 Train size: {X_train.shape[0]}, Test size: {X_test.shape[0]}")
             
             # Determine problem type
             is_classification = user_data.get('data_type') == 'categorical' or len(y.unique()) < 20
@@ -550,11 +550,11 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # Get the appropriate model
             model = self._get_model_instance(model_name, is_classification)
             
-            print(f"≡ƒñû Model Type: {'Classification' if is_classification else 'Regression'}")
-            print(f"≡ƒöº Model: {type(model).__name__}")
+            print(f"🤖 Model Type: {'Classification' if is_classification else 'Regression'}")
+            print(f"🔧 Model: {type(model).__name__}")
             
             # Train the model
-            print(f"ΓÅ│ Training model...")
+            print(f"⏳ Training model...")
             model.fit(X_train, y_train)
             
             # Make predictions
@@ -563,8 +563,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # Calculate performance metrics
             if is_classification:
                 accuracy = accuracy_score(y_test, y_pred)
-                print(f"Γ£à Training Complete!")
-                print(f"≡ƒÄ» Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+                print(f"✅ Training Complete!")
+                print(f"🎯 Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
                 
                 # Classification report
                 report = classification_report(y_test, y_pred, output_dict=True)
@@ -579,9 +579,9 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             else:
                 mse = mean_squared_error(y_test, y_pred)
                 rmse = np.sqrt(mse)
-                print(f"Γ£à Training Complete!")
-                print(f"≡ƒôè RMSE: {rmse:.4f}")
-                print(f"≡ƒôè MSE: {mse:.4f}")
+                print(f"✅ Training Complete!")
+                print(f"📊 RMSE: {rmse:.4f}")
+                print(f"📊 MSE: {mse:.4f}")
                 
                 performance = {
                     'rmse': rmse,
@@ -595,7 +595,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             os.makedirs('models', exist_ok=True)
             joblib.dump(model, model_path)
             
-            print(f"≡ƒÆ╛ Model saved to: {model_path}")
+            print(f"💾 Model saved to: {model_path}")
             print("="*80)
             
             return {
@@ -611,7 +611,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             }
             
         except Exception as e:
-            print(f"Γ¥î Error training model: {str(e)}")
+            print(f"❌ Error training model: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
@@ -636,32 +636,32 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             from sklearn.impute import SimpleImputer
             
             print("\n" + "="*100)
-            print(f"≡ƒÄ» TRAINING SPECIFIC MODEL: {model_name}")
+            print(f"🎯 TRAINING SPECIFIC MODEL: {model_name}")
             print("="*100)
             
             # Create model-specific directory
             model_folder = model_name.replace(' ', '_').replace('/', '_').lower()
             model_dir = os.path.join("models", model_folder)
             os.makedirs(model_dir, exist_ok=True)
-            print(f"≡ƒôü Model directory created: {model_dir}")
+            print(f"📁 Model directory created: {model_dir}")
             
             # ============================================================================
             # STEP 1: LOAD DATASET
             # ============================================================================
             print(f"\n{'='*80}")
-            print("≡ƒôé STEP 1: LOADING DATASET")
+            print("📂 STEP 1: LOADING DATASET")
             print(f"{'='*80}")
             
             start_time = time.time()
             df = pd.read_csv(file_path)
             load_time = time.time() - start_time
             
-            print(f"Γ£à Dataset loaded successfully in {load_time:.2f} seconds")
-            print(f"≡ƒôè Total rows: {df.shape[0]}")
-            print(f"≡ƒôè Total columns: {df.shape[1]}")
-            print(f"≡ƒôè Memory usage: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
-            print(f"≡ƒôï Column names: {list(df.columns)}")
-            print(f"\n≡ƒôè Data types:")
+            print(f"✅ Dataset loaded successfully in {load_time:.2f} seconds")
+            print(f"📊 Total rows: {df.shape[0]}")
+            print(f"📊 Total columns: {df.shape[1]}")
+            print(f"📊 Memory usage: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+            print(f"📋 Column names: {list(df.columns)}")
+            print(f"\n📊 Data types:")
             for col, dtype in df.dtypes.items():
                 print(f"   - {col}: {dtype}")
             
@@ -669,45 +669,45 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # STEP 2: INITIAL DATA INSPECTION
             # ============================================================================
             print(f"\n{'='*80}")
-            print("≡ƒöì STEP 2: INITIAL DATA INSPECTION")
+            print("🔍 STEP 2: INITIAL DATA INSPECTION")
             print(f"{'='*80}")
             
-            print(f"\n≡ƒôè Missing values per column:")
+            print(f"\n📊 Missing values per column:")
             missing_counts = df.isnull().sum()
             for col, count in missing_counts.items():
                 if count > 0:
                     percentage = (count / len(df)) * 100
-                    print(f"   ΓÜá∩╕Å  {col}: {count} ({percentage:.2f}%)")
+                    print(f"   ⚠️  {col}: {count} ({percentage:.2f}%)")
                 else:
-                    print(f"   Γ£à {col}: 0 (0.00%)")
+                    print(f"   ✅ {col}: 0 (0.00%)")
             
-            print(f"\n≡ƒôè Duplicate rows: {df.duplicated().sum()}")
+            print(f"\n📊 Duplicate rows: {df.duplicated().sum()}")
             
-            print(f"\n≡ƒôè Statistical summary:")
+            print(f"\n📊 Statistical summary:")
             print(df.describe())
             
             # ============================================================================
             # STEP 3: IDENTIFY TARGET AND FEATURES
             # ============================================================================
             print(f"\n{'='*80}")
-            print("≡ƒÄ» STEP 3: IDENTIFYING TARGET AND FEATURES")
+            print("🎯 STEP 3: IDENTIFYING TARGET AND FEATURES")
             print(f"{'='*80}")
             
             if target_column is None:
                 target_column = df.columns[-1]
-                print(f"Γä╣∩╕Å  No target column specified, using last column as default")
+                print(f"ℹ️  No target column specified, using last column as default")
             
-            print(f"≡ƒÄ» Target column: {target_column}")
-            print(f"≡ƒôè Target data type: {df[target_column].dtype}")
-            print(f"≡ƒôè Unique target values: {df[target_column].nunique()}")
-            print(f"≡ƒôè Target value distribution:")
+            print(f"🎯 Target column: {target_column}")
+            print(f"📊 Target data type: {df[target_column].dtype}")
+            print(f"📊 Unique target values: {df[target_column].nunique()}")
+            print(f"📊 Target value distribution:")
             print(df[target_column].value_counts().head(10))
             
             # Separate features and target
             X = df.drop(columns=[target_column])
             y = df[target_column]
             
-            print(f"\n≡ƒôè Feature columns ({len(X.columns)}):")
+            print(f"\n📊 Feature columns ({len(X.columns)}):")
             for i, col in enumerate(X.columns, 1):
                 print(f"   {i}. {col} ({X[col].dtype})")
             
@@ -715,21 +715,21 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # STEP 4: DATA PREPROCESSING
             # ============================================================================
             print(f"\n{'='*80}")
-            print("≡ƒöº STEP 4: DATA PREPROCESSING")
+            print("🔧 STEP 4: DATA PREPROCESSING")
             print(f"{'='*80}")
             
             # 4.1: Handle missing values
-            print(f"\n≡ƒöº Step 4.1: Handling Missing Values")
+            print(f"\n🔧 Step 4.1: Handling Missing Values")
             print(f"{'-'*80}")
             
             # Identify numeric and categorical columns
             numeric_cols = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
             categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
             
-            print(f"≡ƒôè Numeric columns: {len(numeric_cols)}")
+            print(f"📊 Numeric columns: {len(numeric_cols)}")
             for col in numeric_cols:
                 print(f"   - {col}")
-            print(f"≡ƒôè Categorical columns: {len(categorical_cols)}")
+            print(f"📊 Categorical columns: {len(categorical_cols)}")
             for col in categorical_cols:
                 print(f"   - {col}")
             
@@ -737,44 +737,44 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             if numeric_cols:
                 missing_numeric = X[numeric_cols].isnull().sum()
                 if missing_numeric.any():
-                    print(f"\n≡ƒöº Imputing missing numeric values with median...")
+                    print(f"\n🔧 Imputing missing numeric values with median...")
                     numeric_imputer = SimpleImputer(strategy='median')
                     X[numeric_cols] = numeric_imputer.fit_transform(X[numeric_cols])
-                    print(f"Γ£à Numeric columns imputed successfully")
+                    print(f"✅ Numeric columns imputed successfully")
                 else:
-                    print(f"Γ£à No missing values in numeric columns")
+                    print(f"✅ No missing values in numeric columns")
             
             # Handle missing values in categorical columns
             if categorical_cols:
                 missing_categorical = X[categorical_cols].isnull().sum()
                 if missing_categorical.any():
-                    print(f"\n≡ƒöº Imputing missing categorical values with mode...")
+                    print(f"\n🔧 Imputing missing categorical values with mode...")
                     categorical_imputer = SimpleImputer(strategy='most_frequent')
                     X[categorical_cols] = categorical_imputer.fit_transform(X[categorical_cols])
-                    print(f"Γ£à Categorical columns imputed successfully")
+                    print(f"✅ Categorical columns imputed successfully")
                 else:
-                    print(f"Γ£à No missing values in categorical columns")
+                    print(f"✅ No missing values in categorical columns")
             
             # 4.2: Handle duplicates
-            print(f"\n≡ƒöº Step 4.2: Handling Duplicate Rows")
+            print(f"\n🔧 Step 4.2: Handling Duplicate Rows")
             print(f"{'-'*80}")
             original_rows = len(X)
             X = X.drop_duplicates()
             y = y[X.index]
             duplicates_removed = original_rows - len(X)
             if duplicates_removed > 0:
-                print(f"≡ƒùæ∩╕Å  Removed {duplicates_removed} duplicate rows")
+                print(f"🗑️  Removed {duplicates_removed} duplicate rows")
             else:
-                print(f"Γ£à No duplicate rows found")
+                print(f"✅ No duplicate rows found")
             
             # 4.3: Encode categorical variables
-            print(f"\n≡ƒöº Step 4.3: Encoding Categorical Variables")
+            print(f"\n🔧 Step 4.3: Encoding Categorical Variables")
             print(f"{'-'*80}")
             
             label_encoders = {}
             if categorical_cols:
                 for col in categorical_cols:
-                    print(f"≡ƒöä Encoding column: {col}")
+                    print(f"🔄 Encoding column: {col}")
                     print(f"   Original unique values: {X[col].nunique()}")
                     print(f"   Sample values: {X[col].unique()[:5]}")
                     
@@ -782,19 +782,19 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     X[col] = le.fit_transform(X[col].astype(str))
                     label_encoders[col] = le
                     
-                    print(f"   Γ£à Encoded to: {X[col].unique()[:5]}")
+                    print(f"   ✅ Encoded to: {X[col].unique()[:5]}")
             else:
-                print(f"Γä╣∩╕Å  No categorical columns to encode")
+                print(f"ℹ️  No categorical columns to encode")
             
             # 4.4: Handle target encoding for classification
-            print(f"\n≡ƒöº Step 4.4: Processing Target Variable")
+            print(f"\n🔧 Step 4.4: Processing Target Variable")
             print(f"{'-'*80}")
             
             is_labeled = user_data.get('is_labeled', 'labeled') in ['labeled', 'true', True]
             data_type = user_data.get('data_type', '')
             is_classification = (data_type in ['categorical', 'classification'] or y.nunique() < 20)
             
-            print(f"≡ƒöì Training mode detection:")
+            print(f"🔍 Training mode detection:")
             print(f"   - is_labeled: {is_labeled} (value: {user_data.get('is_labeled')})")
             print(f"   - data_type: {data_type}")
             print(f"   - is_classification: {is_classification}")
@@ -802,40 +802,40 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             target_encoder = None
             if is_classification and y.dtype == 'object':
-                print(f"≡ƒöä Encoding target variable (classification)")
+                print(f"🔄 Encoding target variable (classification)")
                 print(f"   Original unique values: {y.nunique()}")
                 print(f"   Sample values: {y.unique()[:5]}")
                 
                 target_encoder = LabelEncoder()
                 y = target_encoder.fit_transform(y.astype(str))
                 
-                print(f"   Γ£à Encoded to: {np.unique(y)}")
+                print(f"   ✅ Encoded to: {np.unique(y)}")
             
             # 4.5: Feature scaling
-            print(f"\n≡ƒöº Step 4.5: Feature Scaling")
+            print(f"\n🔧 Step 4.5: Feature Scaling")
             print(f"{'-'*80}")
             
             if numeric_cols:
-                print(f"≡ƒôè Original feature ranges:")
+                print(f"📊 Original feature ranges:")
                 for col in numeric_cols[:5]:  # Show first 5
                     if col in X.columns:
                         print(f"   {col}: [{X[col].min():.2f}, {X[col].max():.2f}]")
                 
-                print(f"\n≡ƒöä Applying StandardScaler to numeric features...")
+                print(f"\n🔄 Applying StandardScaler to numeric features...")
                 scaler = StandardScaler()
                 X[numeric_cols] = scaler.fit_transform(X[numeric_cols])
                 
-                print(f"≡ƒôè Scaled feature ranges:")
+                print(f"📊 Scaled feature ranges:")
                 for col in numeric_cols[:5]:  # Show first 5
                     if col in X.columns:
                         print(f"   {col}: [{X[col].min():.2f}, {X[col].max():.2f}]")
-                print(f"Γ£à Features scaled successfully")
+                print(f"✅ Features scaled successfully")
             else:
                 scaler = None
-                print(f"Γä╣∩╕Å  No numeric features to scale")
+                print(f"ℹ️  No numeric features to scale")
             
             # 4.6: Handle outliers
-            print(f"\n≡ƒöº Step 4.6: Outlier Detection")
+            print(f"\n🔧 Step 4.6: Outlier Detection")
             print(f"{'-'*80}")
             
             if numeric_cols:
@@ -847,15 +847,15 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                         outliers = ((X[col] < (Q1 - 1.5 * IQR)) | (X[col] > (Q3 + 1.5 * IQR))).sum()
                         if outliers > 0:
                             percentage = (outliers / len(X)) * 100
-                            print(f"   ΓÜá∩╕Å  {col}: {outliers} outliers ({percentage:.2f}%)")
+                            print(f"   ⚠️  {col}: {outliers} outliers ({percentage:.2f}%)")
                         else:
-                            print(f"   Γ£à {col}: No outliers detected")
+                            print(f"   ✅ {col}: No outliers detected")
             
             # ============================================================================
             # STEP 5: TRAIN-TEST SPLIT
             # ============================================================================
             print(f"\n{'='*80}")
-            print("Γ£é∩╕Å  STEP 5: SPLITTING DATA INTO TRAIN AND TEST SETS")
+            print("✂️  STEP 5: SPLITTING DATA INTO TRAIN AND TEST SETS")
             print(f"{'='*80}")
             
             test_size = 0.2
@@ -865,45 +865,45 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 X, y, test_size=test_size, random_state=random_state, stratify=y if is_classification else None
             )
             
-            print(f"≡ƒôè Training set size: {X_train.shape[0]} samples ({(1-test_size)*100:.0f}%)")
-            print(f"≡ƒôè Test set size: {X_test.shape[0]} samples ({test_size*100:.0f}%)")
-            print(f"≡ƒôè Feature dimensions: {X_train.shape[1]}")
-            print(f"≡ƒôè Random state: {random_state}")
+            print(f"📊 Training set size: {X_train.shape[0]} samples ({(1-test_size)*100:.0f}%)")
+            print(f"📊 Test set size: {X_test.shape[0]} samples ({test_size*100:.0f}%)")
+            print(f"📊 Feature dimensions: {X_train.shape[1]}")
+            print(f"📊 Random state: {random_state}")
             if is_classification:
-                print(f"≡ƒôè Stratified split: Yes (maintains class distribution)")
-                print(f"\n≡ƒôè Training set class distribution:")
+                print(f"📊 Stratified split: Yes (maintains class distribution)")
+                print(f"\n📊 Training set class distribution:")
                 print(pd.Series(y_train).value_counts())
-                print(f"\n≡ƒôè Test set class distribution:")
+                print(f"\n📊 Test set class distribution:")
                 print(pd.Series(y_test).value_counts())
             
             # ============================================================================
             # STEP 6: MODEL SELECTION AND CONFIGURATION
             # ============================================================================
             print(f"\n{'='*80}")
-            print("≡ƒñû STEP 6: MODEL SELECTION AND CONFIGURATION")
+            print("🤖 STEP 6: MODEL SELECTION AND CONFIGURATION")
             print(f"{'='*80}")
             
-            print(f"≡ƒÄ» Selected model: {model_name}")
-            print(f"≡ƒôè Problem type: {'Classification' if is_classification else 'Regression'}")
-            print(f"≡ƒôè Labeled data: {'Yes' if is_labeled else 'No'}")
-            print(f"≡ƒöì DEBUG: is_labeled value = {is_labeled}, type = {type(is_labeled)}")
-            print(f"≡ƒöì DEBUG: user_data['is_labeled'] = {user_data.get('is_labeled')}")
-            print(f"≡ƒöì DEBUG: model_name = {model_name}")
+            print(f"🎯 Selected model: {model_name}")
+            print(f"📊 Problem type: {'Classification' if is_classification else 'Regression'}")
+            print(f"📊 Labeled data: {'Yes' if is_labeled else 'No'}")
+            print(f"🔍 DEBUG: is_labeled value = {is_labeled}, type = {type(is_labeled)}")
+            print(f"🔍 DEBUG: user_data['is_labeled'] = {user_data.get('is_labeled')}")
+            print(f"🔍 DEBUG: model_name = {model_name}")
             
             # Get the specific model instance
             if not is_labeled or 'cluster' in model_name.lower() or 'pca' in model_name.lower() or 'tsne' in model_name.lower() or 'umap' in model_name.lower():
-                print(f"≡ƒöì Unsupervised learning mode activated")
-                print(f"≡ƒöì DEBUG: Reason - not is_labeled={not is_labeled}, contains cluster/pca/tsne/umap={any(x in model_name.lower() for x in ['cluster', 'pca', 'tsne', 'umap'])}")
+                print(f"🔍 Unsupervised learning mode activated")
+                print(f"🔍 DEBUG: Reason - not is_labeled={not is_labeled}, contains cluster/pca/tsne/umap={any(x in model_name.lower() for x in ['cluster', 'pca', 'tsne', 'umap'])}")
                 return self._train_unsupervised_model(X, model_name, model_dir)
             else:
-                print(f"≡ƒÜÇ SWITCHING TO REALISTIC COMPREHENSIVE TRAINING")
+                print(f"🚀 SWITCHING TO REALISTIC COMPREHENSIVE TRAINING")
                 print(f"{'='*80}")
-                print(f"≡ƒöº Using advanced pipeline training with realistic timing (27-387 seconds)")
-                print(f"≡ƒöº Model-specific parameter grids and comprehensive evaluation")
+                print(f"🔧 Using advanced pipeline training with realistic timing (27-387 seconds)")
+                print(f"🔧 Model-specific parameter grids and comprehensive evaluation")
                 
                 # Use the realistic training method instead of the quick training
                 mapped_model_name = self._map_model_name(model_name)
-                print(f"≡ƒöä Mapped model name: '{model_name}' -> '{mapped_model_name}'")
+                print(f"🔄 Mapped model name: '{model_name}' -> '{mapped_model_name}'")
                 
                 realistic_result = self._execute_pipeline_training(
                     model_name=mapped_model_name,
@@ -913,16 +913,27 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 )
                 
                 if realistic_result['success']:
-                    # Use the corrected metrics from the comprehensive training
-                    ui_metrics = realistic_result.get('performance', {})
-                    training_details = realistic_result.get('training_details', {})
+                    # Extract metrics for UI display
+                    perf_metrics = realistic_result.get('performance_metrics', {})
+                    ui_metrics = {
+                        'accuracy': perf_metrics.get('accuracy', realistic_result.get('test_score', 0)),
+                        'precision': perf_metrics.get('precision', 0),
+                        'recall': perf_metrics.get('recall', 0),
+                        'f1_score': perf_metrics.get('f1_score', 0)
+                    }
+                    
+                    training_details = {
+                        'training_samples': realistic_result.get('n_samples', 0),
+                        'test_samples': int(realistic_result.get('n_samples', 0) * 0.2),  # Approximate 80/20 split
+                        'features': realistic_result.get('n_features', 0),
+                        'training_time': realistic_result.get('training_time', 0)
+                    }
                     
                     # Convert comprehensive realistic result to expected format
                     return {
                         'success': True,
-                        'performance': ui_metrics,  # UI-friendly metrics from comprehensive training
-                        'training_details': training_details,  # Training info from comprehensive training
-                        'feature_info': realistic_result.get('feature_info', {}),  # Feature info from comprehensive training
+                        'performance': ui_metrics,  # UI-friendly metrics
+                        'training_details': training_details,  # Training info for UI
                         'model_info': {
                             'name': realistic_result['model_name'],
                             'type': realistic_result.get('scenario', 'regression'),
@@ -937,19 +948,19 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     return realistic_result
             
             if is_classification:
-                print(f"\n≡ƒôè Classification Metrics:")
+                print(f"\n📊 Classification Metrics:")
                 print(f"{'-'*80}")
                 
                 accuracy = accuracy_score(y_test, y_pred)
-                print(f"≡ƒÄ» Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+                print(f"🎯 Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
                 
                 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
                 
-                print(f"≡ƒôè Precision (macro avg): {report['macro avg']['precision']:.4f}")
-                print(f"≡ƒôè Recall (macro avg): {report['macro avg']['recall']:.4f}")
-                print(f"≡ƒôè F1-score (macro avg): {report['macro avg']['f1-score']:.4f}")
+                print(f"📊 Precision (macro avg): {report['macro avg']['precision']:.4f}")
+                print(f"📊 Recall (macro avg): {report['macro avg']['recall']:.4f}")
+                print(f"📊 F1-score (macro avg): {report['macro avg']['f1-score']:.4f}")
                 
-                print(f"\n≡ƒôï Detailed Classification Report:")
+                print(f"\n📋 Detailed Classification Report:")
                 print(classification_report(y_test, y_pred, zero_division=0))
                 
                 performance = {
@@ -964,7 +975,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 }
                 
             else:
-                print(f"\n≡ƒôè Regression Metrics:")
+                print(f"\n📊 Regression Metrics:")
                 print(f"{'-'*80}")
                 
                 mse = mean_squared_error(y_test, y_pred)
@@ -972,10 +983,10 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 mae = mean_absolute_error(y_test, y_pred)
                 r2 = r2_score(y_test, y_pred)
                 
-                print(f"≡ƒôè Mean Squared Error (MSE): {mse:.4f}")
-                print(f"≡ƒôè Root Mean Squared Error (RMSE): {rmse:.4f}")
-                print(f"≡ƒôè Mean Absolute Error (MAE): {mae:.4f}")
-                print(f"≡ƒôè R┬▓ Score: {r2:.4f}")
+                print(f"📊 Mean Squared Error (MSE): {mse:.4f}")
+                print(f"📊 Root Mean Squared Error (RMSE): {rmse:.4f}")
+                print(f"📊 Mean Absolute Error (MAE): {mae:.4f}")
+                print(f"📊 R² Score: {r2:.4f}")
                 
                 performance = {
                     'model_name': model_name,
@@ -992,7 +1003,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # STEP 9: MODEL PERSISTENCE
             # ============================================================================
             print(f"\n{'='*80}")
-            print("≡ƒÆ╛ STEP 9: SAVING MODEL AND ARTIFACTS")
+            print("💾 STEP 9: SAVING MODEL AND ARTIFACTS")
             print(f"{'='*80}")
             
             timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
@@ -1001,23 +1012,23 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             model_filename = f"{model_folder}_{timestamp}.joblib"
             model_path = os.path.join(model_dir, model_filename)
             joblib.dump(model, model_path)
-            print(f"Γ£à Model saved: {model_path}")
+            print(f"✅ Model saved: {model_path}")
             
             # Save preprocessing artifacts
             if scaler is not None:
                 scaler_path = os.path.join(model_dir, f"scaler_{timestamp}.joblib")
                 joblib.dump(scaler, scaler_path)
-                print(f"Γ£à Scaler saved: {scaler_path}")
+                print(f"✅ Scaler saved: {scaler_path}")
             
             if label_encoders:
                 encoders_path = os.path.join(model_dir, f"label_encoders_{timestamp}.joblib")
                 joblib.dump(label_encoders, encoders_path)
-                print(f"Γ£à Label encoders saved: {encoders_path}")
+                print(f"✅ Label encoders saved: {encoders_path}")
             
             if target_encoder is not None:
                 target_encoder_path = os.path.join(model_dir, f"target_encoder_{timestamp}.joblib")
                 joblib.dump(target_encoder, target_encoder_path)
-                print(f"Γ£à Target encoder saved: {target_encoder_path}")
+                print(f"✅ Target encoder saved: {target_encoder_path}")
             
             # Save feature names
             feature_info = {
@@ -1029,7 +1040,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             feature_info_path = os.path.join(model_dir, f"feature_info_{timestamp}.json")
             with open(feature_info_path, 'w') as f:
                 json.dump(feature_info, f, indent=2)
-            print(f"Γ£à Feature info saved: {feature_info_path}")
+            print(f"✅ Feature info saved: {feature_info_path}")
             
             # Save metadata
             metadata = {
@@ -1049,20 +1060,20 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             metadata_path = os.path.join(model_dir, f"metadata_{timestamp}.json")
             with open(metadata_path, 'w') as f:
                 json.dump(metadata, f, indent=2)
-            print(f"Γ£à Metadata saved: {metadata_path}")
+            print(f"✅ Metadata saved: {metadata_path}")
             
             # ============================================================================
             # FINAL SUMMARY
             # ============================================================================
             print(f"\n{'='*100}")
-            print(f"Γ£à MODEL TRAINING COMPLETED SUCCESSFULLY")
+            print(f"✅ MODEL TRAINING COMPLETED SUCCESSFULLY")
             print(f"{'='*100}")
             
             total_time = time.time() - start_time
-            print(f"ΓÅ▒∩╕Å  Total execution time: {total_time:.2f} seconds")
-            print(f"≡ƒôü Model directory: {model_dir}")
-            print(f"≡ƒÄ» Model: {model_name}")
-            print(f"≡ƒôè Performance summary: {performance}")
+            print(f"⏱️  Total execution time: {total_time:.2f} seconds")
+            print(f"📁 Model directory: {model_dir}")
+            print(f"🎯 Model: {model_name}")
+            print(f"📊 Performance summary: {performance}")
             print(f"{'='*100}\n")
             
             # Calculate detailed metrics for UI display
@@ -1111,7 +1122,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 
         except Exception as e:
             print(f"\n{'='*100}")
-            print(f"Γ¥î ERROR IN MODEL TRAINING")
+            print(f"❌ ERROR IN MODEL TRAINING")
             print(f"{'='*100}")
             print(f"Error: {str(e)}")
             import traceback
@@ -1174,21 +1185,21 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             import time
             
             print(f"\n{'='*80}")
-            print("≡ƒöì UNSUPERVISED LEARNING MODE")
+            print("🔍 UNSUPERVISED LEARNING MODE")
             print(f"{'='*80}")
             
             # Get the unsupervised model instance
             model = self._get_unsupervised_model_instance(model_name)
             
-            print(f"≡ƒöº Model class: {type(model).__name__}")
-            print(f"≡ƒôï Model parameters:")
+            print(f"🔧 Model class: {type(model).__name__}")
+            print(f"📋 Model parameters:")
             params = model.get_params() if hasattr(model, 'get_params') else {}
             for param, value in params.items():
                 print(f"   - {param}: {value}")
             
-            print(f"\nΓÅ│ Training {model_name}...")
-            print(f"≡ƒôè Training samples: {X.shape[0]}")
-            print(f"≡ƒôè Features: {X.shape[1]}")
+            print(f"\n⏳ Training {model_name}...")
+            print(f"📊 Training samples: {X.shape[0]}")
+            print(f"📊 Features: {X.shape[1]}")
             
             training_start = time.time()
             
@@ -1203,7 +1214,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             training_time = time.time() - training_start
             
-            print(f"Γ£à Training completed in {training_time:.2f} seconds")
+            print(f"✅ Training completed in {training_time:.2f} seconds")
             
             # Performance evaluation
             performance = {
@@ -1217,7 +1228,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # Add model-specific metrics
             if labels is not None:
                 unique_labels = np.unique(labels)
-                print(f"\n≡ƒôè Clustering Results:")
+                print(f"\n📊 Clustering Results:")
                 print(f"   Number of clusters: {len(unique_labels)}")
                 print(f"   Cluster distribution:")
                 for label in unique_labels:
@@ -1229,7 +1240,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 performance['cluster_distribution'] = {str(k): int(v) for k, v in zip(*np.unique(labels, return_counts=True))}
             
             if transformed_data is not None:
-                print(f"\n≡ƒôè Transformed data shape: {transformed_data.shape}")
+                print(f"\n📊 Transformed data shape: {transformed_data.shape}")
                 performance['transformed_shape'] = list(transformed_data.shape)
             
             # Save the model
@@ -1239,13 +1250,13 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             model_path = os.path.join(model_dir, model_filename)
             
             joblib.dump(model, model_path)
-            print(f"\n≡ƒÆ╛ Model saved: {model_path}")
+            print(f"\n💾 Model saved: {model_path}")
             
             # Save transformed data if available
             if transformed_data is not None:
                 transformed_path = os.path.join(model_dir, f"transformed_data_{timestamp}.npy")
                 np.save(transformed_path, transformed_data)
-                print(f"≡ƒÆ╛ Transformed data saved: {transformed_path}")
+                print(f"💾 Transformed data saved: {transformed_path}")
             
             # Save metadata
             metadata = {
@@ -1259,10 +1270,10 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             metadata_path = os.path.join(model_dir, f"metadata_{timestamp}.json")
             with open(metadata_path, 'w') as f:
                 json.dump(metadata, f, indent=2)
-            print(f"≡ƒÆ╛ Metadata saved: {metadata_path}")
+            print(f"💾 Metadata saved: {metadata_path}")
             
             print(f"\n{'='*80}")
-            print("Γ£à UNSUPERVISED MODEL TRAINING COMPLETED")
+            print("✅ UNSUPERVISED MODEL TRAINING COMPLETED")
             print(f"{'='*80}\n")
             
             return {
@@ -1279,7 +1290,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             }
             
         except Exception as e:
-            print(f"\nΓ¥î Error training unsupervised model: {str(e)}")
+            print(f"\n❌ Error training unsupervised model: {str(e)}")
             import traceback
             print(f"Traceback:\n{traceback.format_exc()}")
             
@@ -1321,12 +1332,12 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 import umap
                 return umap.UMAP(n_components=2, random_state=42)
             except ImportError:
-                print("ΓÜá∩╕Å  UMAP not installed, falling back to PCA")
+                print("⚠️  UMAP not installed, falling back to PCA")
                 return PCA(n_components=2, random_state=42)
         
         # Default to K-Means
         else:
-            print(f"ΓÜá∩╕Å  Unknown unsupervised model '{model_name}', using K-Means as default")
+            print(f"⚠️  Unknown unsupervised model '{model_name}', using K-Means as default")
             return KMeans(n_clusters=3, random_state=42)
 
     def get_model_class(self, model_name: str):
@@ -1660,7 +1671,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             evaluation_code = "print('\\nTest Set Evaluation:')\nprint(classification_report(y_test, y_pred))"
         else:
             evaluation_import = "from sklearn.metrics import mean_squared_error, r2_score"
-            evaluation_code = "mse = mean_squared_error(y_test, y_pred)\nr2 = r2_score(y_test, y_pred)\nprint(f'\\nTest Set Evaluation:')\nprint(f'Mean Squared Error: {mse:.4f}')\nprint(f'R┬▓ Score: {r2:.4f}')"
+            evaluation_code = "mse = mean_squared_error(y_test, y_pred)\nr2 = r2_score(y_test, y_pred)\nprint(f'\\nTest Set Evaluation:')\nprint(f'Mean Squared Error: {mse:.4f}')\nprint(f'R² Score: {r2:.4f}')"
 
         script = f'''"""
 High-Accuracy Model Training Script
@@ -1680,12 +1691,12 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 {model_config["import"]}
 
 # Load Data
-print("≡ƒôä Loading dataset...")
+print("📄 Loading dataset...")
 df = pd.read_csv('{filename}')
 print(f"Dataset shape: {{df.shape}}")
 
 # Define Target & Features
-print("\\n≡ƒÄ» Defining target and features...")
+print("\\n🎯 Defining target and features...")
 target_column = '{target_column}'
 columns_to_drop = {drop_cols_str}
 
@@ -1701,7 +1712,7 @@ print(f"Number of features: {{len(feature_columns)}}")
 print(f"Features: {{feature_columns}}")
 
 # Automatic Preprocessing
-print("\\n≡ƒöä Setting up preprocessing pipeline...")
+print("\\n🔄 Setting up preprocessing pipeline...")
 
 # Identify numerical and categorical columns
 numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
@@ -1728,7 +1739,7 @@ preprocessor = ColumnTransformer([
 ])
 
 # Create Full Pipeline
-print("\\n≡ƒñû Creating full training pipeline...")
+print("\\n🤖 Creating full training pipeline...")
 model = {model_config["instance"]}
 
 # Create pipeline that chains preprocessing and model
@@ -1738,7 +1749,7 @@ full_pipeline = Pipeline([
 ])
 
 # Data Split
-print("\\n≡ƒôè Splitting data...")
+print("\\n📊 Splitting data...")
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y if '{scenario_type}' == 'classification' else None
 )
@@ -1747,7 +1758,7 @@ print(f"Training set: {{X_train.shape}}")
 print(f"Test set: {{X_test.shape}}")
 
 # Hyperparameter Tuning
-print("\\n≡ƒöì Starting hyperparameter tuning...")
+print("\\n🔍 Starting hyperparameter tuning...")
 param_grid = {param_grid_str}
 
 print(f"Parameter grid: {{param_grid}}")
@@ -1764,10 +1775,10 @@ grid_search = GridSearchCV(
 )
 
 # Train & Evaluate
-print("\\n≡ƒÜÇ Training model with grid search...")
+print("\\n🚀 Training model with grid search...")
 grid_search.fit(X_train, y_train)
 
-print("\\n≡ƒÅå TRAINING COMPLETED!")
+print("\\n🏆 TRAINING COMPLETED!")
 print("=" * 50)
 
 # Best parameters
@@ -1779,7 +1790,7 @@ for param, value in grid_search.best_params_.items():
 print(f"\\nBest Cross-Validation Score: {{grid_search.best_score_:.4f}}")
 
 # Test set evaluation
-print("\\n≡ƒôê Evaluating on test set...")
+print("\\n📈 Evaluating on test set...")
 y_pred = grid_search.predict(X_test)
 
 {evaluation_code}
@@ -1797,13 +1808,13 @@ try:
         feature_importance = list(zip(feature_names, importances))
         feature_importance.sort(key=lambda x: x[1], reverse=True)
         
-        print("\\n≡ƒôè Top 10 Most Important Features:")
+        print("\\n📊 Top 10 Most Important Features:")
         for i, (feature, importance) in enumerate(feature_importance[:10]):
             print(f"  {{i+1:2d}}. {{feature:30s}} {{importance:.4f}}")
 except:
     print("\\nFeature importance not available for this model.")
 
-print("\\nΓ£à Training completed successfully!")
+print("\\n✅ Training completed successfully!")
 '''
         
         return script
@@ -1832,12 +1843,12 @@ from sklearn.metrics import silhouette_score
 {model_config["import"]}
 
 # Load Data
-print("≡ƒôä Loading dataset...")
+print("📄 Loading dataset...")
 df = pd.read_csv('{filename}')
 print(f"Dataset shape: {{df.shape}}")
 
 # Define Features
-print("\\n≡ƒÄ» Defining features...")
+print("\\n🎯 Defining features...")
 columns_to_drop = {drop_cols_str}
 
 # The features X are all columns except {drop_cols_str}
@@ -1848,7 +1859,7 @@ print(f"Number of features: {{len(feature_columns)}}")
 print(f"Features: {{feature_columns}}")
 
 # Automatic Preprocessing
-print("\\n≡ƒöä Setting up preprocessing pipeline...")
+print("\\n🔄 Setting up preprocessing pipeline...")
 
 # Identify numerical and categorical columns  
 numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
@@ -1875,7 +1886,7 @@ preprocessor = ColumnTransformer([
 ])
 
 # Create Full Pipeline
-print("\\n≡ƒñû Creating clustering pipeline...")
+print("\\n🤖 Creating clustering pipeline...")
 model = {model_config["instance"]}
 
 # Create pipeline that chains preprocessing and clustering
@@ -1885,14 +1896,14 @@ full_pipeline = Pipeline([
 ])
 
 # Train
-print("\\n≡ƒÜÇ Training clustering model...")
+print("\\n🚀 Training clustering model...")
 cluster_labels = full_pipeline.fit_predict(X)
 
-print(f"Γ£à Clustering completed!")
+print(f"✅ Clustering completed!")
 print(f"Number of clusters found: {{len(np.unique(cluster_labels))}}")
 
 # Evaluate
-print("\\n≡ƒôè Evaluating cluster quality...")
+print("\\n📊 Evaluating cluster quality...")
 
 # Get preprocessed data for evaluation
 X_preprocessed = full_pipeline.named_steps['preprocessor'].transform(X)
@@ -1903,24 +1914,24 @@ if len(np.unique(cluster_labels)) > 1:
     print(f"Silhouette Score: {{silhouette_avg:.4f}}")
     
     if silhouette_avg > 0.5:
-        print("≡ƒÅå Excellent clustering quality!")
+        print("🏆 Excellent clustering quality!")
     elif silhouette_avg > 0.25:
-        print("Γ£à Good clustering quality")
+        print("✅ Good clustering quality")
     else:
-        print("ΓÜá∩╕Å Clustering quality could be improved")
+        print("⚠️ Clustering quality could be improved")
 else:
-    print("ΓÜá∩╕Å Only one cluster found - consider adjusting parameters")
+    print("⚠️ Only one cluster found - consider adjusting parameters")
 
 # Cluster distribution
 unique, counts = np.unique(cluster_labels, return_counts=True)
-print("\\n≡ƒôê Cluster Distribution:")
+print("\\n📈 Cluster Distribution:")
 for cluster_id, count in zip(unique, counts):
     percentage = (count / len(cluster_labels)) * 100
     print(f"  Cluster {{cluster_id}}: {{count}} points ({{percentage:.1f}}%)")
 
 # Bonus: Elbow Method (for KMeans)
 if 'kmeans' in model_config["class"].lower():
-    print("\\n≡ƒöì Finding optimal number of clusters (Elbow Method)...")
+    print("\\n🔍 Finding optimal number of clusters (Elbow Method)...")
     
     inertias = []
     k_range = range(1, min(11, len(X)))
@@ -1944,7 +1955,7 @@ if 'kmeans' in model_config["class"].lower():
     
     print("Look for the 'elbow' in the curve to determine optimal k!")
 
-print("\\nΓ£à Clustering analysis completed!")
+print("\\n✅ Clustering analysis completed!")
 '''
         
         return script
@@ -2067,7 +2078,7 @@ print("\\nΓ£à Clustering analysis completed!")
             return "DBSCAN"
         
         # If no mapping found, return original name and let trainer handle error
-        print(f"ΓÜá∩╕Å  No mapping found for model '{recommendation_model_name}', using original name")
+        print(f"⚠️  No mapping found for model '{recommendation_model_name}', using original name")
         return recommendation_model_name
 
     def _execute_pipeline_training(self, model_name: str, original_name: str, file_path: str, target_column: str) -> Dict[str, Any]:
@@ -2097,31 +2108,31 @@ print("\\nΓ£à Clustering analysis completed!")
         
         try:
             print(f"\n{'='*100}")
-            print(f"≡ƒÜÇ STARTING COMPREHENSIVE TRAINING FOR: {model_name.upper()}")
+            print(f"🚀 STARTING COMPREHENSIVE TRAINING FOR: {model_name.upper()}")
             print(f"{'='*100}")
             
             # 1. Data Loading and Analysis
-            print(f"\n≡ƒôä STEP 1: LOADING AND ANALYZING DATA")
+            print(f"\n📄 STEP 1: LOADING AND ANALYZING DATA")
             print(f"{'='*60}")
             
             start_time = time.time()
             df = pd.read_csv(file_path)
             loading_time = time.time() - start_time
             
-            print(f"Γ£à Dataset loaded successfully in {loading_time:.2f} seconds")
-            print(f"≡ƒôè Dataset shape: {df.shape[0]} rows ├ù {df.shape[1]} columns")
-            print(f"≡ƒôè Memory usage: {df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB")
+            print(f"✅ Dataset loaded successfully in {loading_time:.2f} seconds")
+            print(f"📊 Dataset shape: {df.shape[0]} rows × {df.shape[1]} columns")
+            print(f"📊 Memory usage: {df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB")
             
             # Validate target column
             if target_column not in df.columns:
-                raise ValueError(f"Γ¥î Target column '{target_column}' not found in dataset")
+                raise ValueError(f"❌ Target column '{target_column}' not found in dataset")
             
             # Data quality analysis
-            print(f"\n≡ƒöì DATA QUALITY ANALYSIS:")
+            print(f"\n🔍 DATA QUALITY ANALYSIS:")
             missing_total = df.isnull().sum().sum()
             duplicate_total = df.duplicated().sum()
-            print(f"   ≡ƒôè Missing values: {missing_total} ({missing_total/len(df)*100:.2f}%)")
-            print(f"   ≡ƒôè Duplicate rows: {duplicate_total} ({duplicate_total/len(df)*100:.2f}%)")
+            print(f"   📊 Missing values: {missing_total} ({missing_total/len(df)*100:.2f}%)")
+            print(f"   📊 Duplicate rows: {duplicate_total} ({duplicate_total/len(df)*100:.2f}%)")
             
             # Determine problem type
             unique_targets = df[target_column].nunique()
@@ -2135,36 +2146,32 @@ print("\\nΓ£à Clustering analysis completed!")
             
             scenario = "classification" if is_classification else "regression"
             
-            print(f"\n≡ƒÄ» PROBLEM TYPE ANALYSIS:")
-            print(f"   ≡ƒôï Problem type: {scenario.upper()}")
-            print(f"   ≡ƒÄ» Target column: '{target_column}'")
-            print(f"   ≡ƒôè Target data type: {target_dtype}")
-            print(f"   ≡ƒôè Unique target values: {unique_targets}")
+            print(f"\n🎯 PROBLEM TYPE ANALYSIS:")
+            print(f"   📋 Problem type: {scenario.upper()}")
+            print(f"   🎯 Target column: '{target_column}'")
+            print(f"   📊 Target data type: {target_dtype}")
+            print(f"   📊 Unique target values: {unique_targets}")
             
             if scenario == "classification":
                 target_dist = df[target_column].value_counts().head()
-                print(f"   ≡ƒôè Class distribution:")
+                print(f"   📊 Class distribution:")
                 for value, count in target_dist.items():
-                    print(f"      ΓÇó {value}: {count} ({count/len(df)*100:.1f}%)")
+                    print(f"      • {value}: {count} ({count/len(df)*100:.1f}%)")
             
             # 2. Feature Engineering and Preparation
-            print(f"\n≡ƒöº STEP 2: COMPREHENSIVE DATA PREPROCESSING")
+            print(f"\n🔧 STEP 2: COMPREHENSIVE DATA PREPROCESSING")
             print(f"{'='*60}")
             
             # Separate features and target
             y = df[target_column]
             X = df.drop(columns=[target_column])
             
-            # Store original feature names for later use
-            original_feature_names = list(X.columns)
-            print(f"   ≡ƒôè Original feature names: {original_feature_names}")
-            
             # Feature type identification
             numeric_features = X.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns.tolist()
             categorical_features = X.select_dtypes(include=['object', 'category']).columns.tolist()
             
-            print(f"   ≡ƒôê Numerical features ({len(numeric_features)}): {numeric_features[:5]}{'...' if len(numeric_features) > 5 else ''}")
-            print(f"   ≡ƒÅ╖∩╕Å  Categorical features ({len(categorical_features)}): {categorical_features[:5]}{'...' if len(categorical_features) > 5 else ''}")
+            print(f"   📈 Numerical features ({len(numeric_features)}): {numeric_features[:5]}{'...' if len(numeric_features) > 5 else ''}")
+            print(f"   🏷️  Categorical features ({len(categorical_features)}): {categorical_features[:5]}{'...' if len(categorical_features) > 5 else ''}")
             
             # Data preprocessing with pipeline
             preprocessor_steps = []
@@ -2175,7 +2182,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     ('scaler', StandardScaler())
                 ])
                 preprocessor_steps.append(('num', numeric_pipeline, numeric_features))
-                print(f"   Γ£à Numeric preprocessing: median imputation + standard scaling")
+                print(f"   ✅ Numeric preprocessing: median imputation + standard scaling")
             
             if categorical_features:
                 categorical_pipeline = Pipeline([
@@ -2183,10 +2190,10 @@ print("\\nΓ£à Clustering analysis completed!")
                     ('encoder', OneHotEncoder(handle_unknown='ignore', drop='first'))
                 ])
                 preprocessor_steps.append(('cat', categorical_pipeline, categorical_features))
-                print(f"   Γ£à Categorical preprocessing: mode imputation + one-hot encoding")
+                print(f"   ✅ Categorical preprocessing: mode imputation + one-hot encoding")
             
             if not preprocessor_steps:
-                raise ValueError("Γ¥î No valid features found for preprocessing")
+                raise ValueError("❌ No valid features found for preprocessing")
             
             preprocessor = ColumnTransformer(preprocessor_steps)
             
@@ -2195,10 +2202,10 @@ print("\\nΓ£à Clustering analysis completed!")
             if scenario == "classification" and y.dtype == 'object':
                 target_encoder = LabelEncoder()
                 y = target_encoder.fit_transform(y)
-                print(f"   Γ£à Target encoded from categorical to numeric")
+                print(f"   ✅ Target encoded from categorical to numeric")
             
             # 3. Train-Test Split
-            print(f"\n≡ƒôè STEP 3: DATA SPLITTING")
+            print(f"\n📊 STEP 3: DATA SPLITTING")
             print(f"{'='*60}")
             
             X_train, X_test, y_train, y_test = train_test_split(
@@ -2206,22 +2213,22 @@ print("\\nΓ£à Clustering analysis completed!")
                 stratify=y if scenario == "classification" and len(np.unique(y)) > 1 else None
             )
             
-            print(f"   ≡ƒôè Training set: {X_train.shape[0]} samples ({80}%)")
-            print(f"   ≡ƒôè Test set: {X_test.shape[0]} samples ({20}%)")
-            print(f"   ≡ƒôè Feature dimensions: {X_train.shape[1]}")
+            print(f"   📊 Training set: {X_train.shape[0]} samples ({80}%)")
+            print(f"   📊 Test set: {X_test.shape[0]} samples ({20}%)")
+            print(f"   📊 Feature dimensions: {X_train.shape[1]}")
             
             if scenario == "classification":
-                print(f"   Γ£à Stratified split applied to maintain class balance")
+                print(f"   ✅ Stratified split applied to maintain class balance")
             
             # 4. Model Selection and Configuration
-            print(f"\n≡ƒñû STEP 4: MODEL CONFIGURATION")
+            print(f"\n🤖 STEP 4: MODEL CONFIGURATION")
             print(f"{'='*60}")
             
             model, param_grid = self._get_model_and_params(model_name, scenario)
             
-            print(f"   ≡ƒÄ» Model: {type(model).__name__}")
-            print(f"   ≡ƒöº Model parameters: {model.get_params() if hasattr(model, 'get_params') else 'N/A'}")
-            print(f"   ≡ƒöì Parameter grid size: {len(param_grid)} parameters")
+            print(f"   🎯 Model: {type(model).__name__}")
+            print(f"   🔧 Model parameters: {model.get_params() if hasattr(model, 'get_params') else 'N/A'}")
+            print(f"   🔍 Parameter grid size: {len(param_grid)} parameters")
             
             # Show expected training time
             expected_times = {
@@ -2239,10 +2246,10 @@ print("\\nΓ£à Clustering analysis completed!")
             }
             
             expected_time = next((time_range for key, time_range in expected_times.items() if key in model_name.lower()), '30-60 seconds')
-            print(f"   ΓÅ▒∩╕Å  Expected training time: {expected_time}")
+            print(f"   ⏱️  Expected training time: {expected_time}")
             
             # 5. Pipeline Creation
-            print(f"\n≡ƒöº STEP 5: CREATING TRAINING PIPELINE")
+            print(f"\n🔧 STEP 5: CREATING TRAINING PIPELINE")
             print(f"{'='*60}")
             
             pipeline = Pipeline([
@@ -2250,12 +2257,12 @@ print("\\nΓ£à Clustering analysis completed!")
                 ('model', model)
             ])
             
-            print(f"   Γ£à Pipeline created with {len(pipeline.steps)} steps:")
+            print(f"   ✅ Pipeline created with {len(pipeline.steps)} steps:")
             for i, (name, step) in enumerate(pipeline.steps, 1):
                 print(f"      {i}. {name}: {type(step).__name__}")
             
             # 6. Hyperparameter Tuning
-            print(f"\n≡ƒöì STEP 6: HYPERPARAMETER OPTIMIZATION")
+            print(f"\n🔍 STEP 6: HYPERPARAMETER OPTIMIZATION")
             print(f"{'='*60}")
             
             scoring = 'accuracy' if scenario == "classification" else 'r2'
@@ -2266,28 +2273,15 @@ print("\\nΓ£à Clustering analysis completed!")
                 if isinstance(param_values, list):
                     total_combinations *= len(param_values)
             
-            # Determine appropriate CV folds based on dataset size
-            n_samples = len(X_train)
-            if scenario == 'classification':
-                # For classification, ensure we have enough samples per class for CV
-                min_class_size = min(np.bincount(y_train))
-                cv_folds = min(5, min_class_size, n_samples // 2)
-            else:
-                # For regression, just ensure we have enough samples
-                cv_folds = min(5, n_samples // 2)
-            
-            # Minimum of 2 folds
-            cv_folds = max(2, cv_folds)
-            
-            print(f"   ≡ƒöì Using GridSearchCV with {cv_folds}-fold cross-validation")
-            print(f"   ≡ƒôè Scoring metric: {scoring}")
-            print(f"   ≡ƒöó Total parameter combinations: {total_combinations}")
-            print(f"   ≡ƒöä Total model fits: {total_combinations * cv_folds} (CV folds)")
+            print(f"   🔍 Using GridSearchCV with 5-fold cross-validation")
+            print(f"   📊 Scoring metric: {scoring}")
+            print(f"   🔢 Total parameter combinations: {total_combinations}")
+            print(f"   🔄 Total model fits: {total_combinations * 5} (CV folds)")
             
             grid_search = GridSearchCV(
                 pipeline,
                 param_grid,
-                cv=cv_folds,
+                cv=5,
                 scoring=scoring,
                 n_jobs=-1,
                 verbose=1,
@@ -2295,26 +2289,26 @@ print("\\nΓ£à Clustering analysis completed!")
             )
             
             # 7. Model Training
-            print(f"\n≡ƒÜÇ STEP 7: MODEL TRAINING & EVALUATION")
+            print(f"\n🚀 STEP 7: MODEL TRAINING & EVALUATION")
             print(f"{'='*60}")
             
             training_start = time.time()
-            print(f"   ΓÅ│ Training started at {datetime.now().strftime('%H:%M:%S')}")
-            print(f"   ≡ƒöä Training {total_combinations} configurations with {cv_folds}-fold CV...")
+            print(f"   ⏳ Training started at {datetime.now().strftime('%H:%M:%S')}")
+            print(f"   🔄 Training {total_combinations} configurations with 5-fold CV...")
             
             # Fit the model with progress tracking
             grid_search.fit(X_train, y_train)
             training_time = time.time() - training_start
             
-            print(f"   Γ£à Training completed in {training_time:.2f} seconds")
-            print(f"   ≡ƒÅå Best CV score: {grid_search.best_score_:.4f}")
+            print(f"   ✅ Training completed in {training_time:.2f} seconds")
+            print(f"   🏆 Best CV score: {grid_search.best_score_:.4f}")
             
-            print(f"\n   ≡ƒöº Best hyperparameters:")
+            print(f"\n   🔧 Best hyperparameters:")
             for param, value in grid_search.best_params_.items():
-                print(f"      ΓÇó {param}: {value}")
+                print(f"      • {param}: {value}")
             
             # 8. Model Evaluation
-            print(f"\n≡ƒôê STEP 8: COMPREHENSIVE MODEL EVALUATION")
+            print(f"\n📈 STEP 8: COMPREHENSIVE MODEL EVALUATION")
             print(f"{'='*60}")
             
             # Make predictions
@@ -2322,9 +2316,9 @@ print("\\nΓ£à Clustering analysis completed!")
             
             if scenario == "classification":
                 test_accuracy = accuracy_score(y_test, y_pred)
-                print(f"   ≡ƒÄ» Test Accuracy: {test_accuracy:.4f} ({test_accuracy*100:.2f}%)")
+                print(f"   🎯 Test Accuracy: {test_accuracy:.4f} ({test_accuracy*100:.2f}%)")
                 
-                print(f"\n   ≡ƒôï Detailed Classification Report:")
+                print(f"\n   📋 Detailed Classification Report:")
                 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
                 print(classification_report(y_test, y_pred, zero_division=0))
                 
@@ -2343,9 +2337,9 @@ print("\\nΓ£à Clustering analysis completed!")
                 mae = mean_absolute_error(y_test, y_pred)
                 r2 = r2_score(y_test, y_pred)
                 
-                print(f"   ≡ƒôè Test R┬▓ Score: {r2:.4f} ({r2*100:.2f}%)")
-                print(f"   ≡ƒôè Root Mean Squared Error: {rmse:.4f}")
-                print(f"   ≡ƒôè Mean Absolute Error: {mae:.4f}")
+                print(f"   📊 Test R² Score: {r2:.4f} ({r2*100:.2f}%)")
+                print(f"   📊 Root Mean Squared Error: {rmse:.4f}")
+                print(f"   📊 Mean Absolute Error: {mae:.4f}")
                 
                 performance_metrics = {
                     'r2_score': float(r2),
@@ -2355,7 +2349,7 @@ print("\\nΓ£à Clustering analysis completed!")
                 }
             
             # 9. Model Persistence
-            print(f"\n≡ƒÆ╛ STEP 9: SAVING MODEL AND ARTIFACTS")
+            print(f"\n💾 STEP 9: SAVING MODEL AND ARTIFACTS")
             print(f"{'='*60}")
             
             # Create model directory
@@ -2368,13 +2362,13 @@ print("\\nΓ£à Clustering analysis completed!")
             # Save the trained model
             model_path = os.path.join(model_folder, f"model_{timestamp}.joblib")
             joblib.dump(grid_search.best_estimator_, model_path)
-            print(f"   Γ£à Model saved: {model_path}")
+            print(f"   ✅ Model saved: {model_path}")
             
             # Save target encoder if used
             if target_encoder is not None:
                 encoder_path = os.path.join(model_folder, f"target_encoder_{timestamp}.joblib")
                 joblib.dump(target_encoder, encoder_path)
-                print(f"   Γ£à Target encoder saved: {encoder_path}")
+                print(f"   ✅ Target encoder saved: {encoder_path}")
             
             # Save metadata
             metadata = {
@@ -2389,7 +2383,7 @@ print("\\nΓ£à Clustering analysis completed!")
                 'n_features': X.shape[1],
                 'n_train_samples': len(X_train),
                 'n_test_samples': len(X_test),
-                'feature_names': original_feature_names,  # Use original feature names
+                'feature_names': list(X.columns),
                 'target_column': target_column,
                 'preprocessing_steps': len(preprocessor_steps)
             }
@@ -2398,51 +2392,36 @@ print("\\nΓ£à Clustering analysis completed!")
             with open(metadata_path, 'w') as f:
                 import json
                 json.dump(metadata, f, indent=2)
-            print(f"   Γ£à Metadata saved: {metadata_path}")
+            print(f"   ✅ Metadata saved: {metadata_path}")
             
             # Final Summary
             print(f"\n{'='*100}")
-            print(f"≡ƒÄë TRAINING COMPLETED SUCCESSFULLY FOR {original_name.upper()}")
+            print(f"🎉 TRAINING COMPLETED SUCCESSFULLY FOR {original_name.upper()}")
             print(f"{'='*100}")
-            print(f"≡ƒôü Model folder: {model_folder}")
-            print(f"ΓÅ▒∩╕Å  Training time: {training_time:.2f} seconds")
-            print(f"≡ƒÄ» Best CV score: {grid_search.best_score_:.4f}")
+            print(f"📁 Model folder: {model_folder}")
+            print(f"⏱️  Training time: {training_time:.2f} seconds")
+            print(f"🎯 Best CV score: {grid_search.best_score_:.4f}")
             if scenario == "classification":
-                print(f"≡ƒÄ» Test accuracy: {performance_metrics['accuracy']:.4f}")
+                print(f"🎯 Test accuracy: {performance_metrics['accuracy']:.4f}")
             else:
-                print(f"≡ƒÄ» Test R┬▓ score: {performance_metrics['r2_score']:.4f}")
-            print(f"≡ƒôè Total samples: {len(X)}")
-            print(f"≡ƒôè Features used: {X.shape[1]}")
+                print(f"🎯 Test R² score: {performance_metrics['r2_score']:.4f}")
+            print(f"📊 Total samples: {len(X)}")
+            print(f"📊 Features used: {X.shape[1]}")
             print(f"{'='*100}\n")
             
             # Calculate detailed metrics for UI display
-            if scenario == "classification":
-                ui_metrics = {
-                    'accuracy': performance_metrics.get('accuracy', 0),
-                    'precision': performance_metrics.get('precision', 0),
-                    'recall': performance_metrics.get('recall', 0),
-                    'f1_score': performance_metrics.get('f1_score', 0)
-                }
-            else:
-                # For regression, use R2 score as accuracy and set others to 0
-                ui_metrics = {
-                    'accuracy': performance_metrics.get('r2_score', 0),
-                    'precision': performance_metrics.get('r2_score', 0),  # Use R2 for consistency
-                    'recall': performance_metrics.get('r2_score', 0),     # Use R2 for consistency
-                    'f1_score': performance_metrics.get('r2_score', 0)    # Use R2 for consistency
-                }
+            ui_metrics = {
+                'accuracy': performance_metrics.get('accuracy', performance_metrics.get('r2_score', 0)),
+                'precision': performance_metrics.get('precision', 0),
+                'recall': performance_metrics.get('recall', 0),
+                'f1_score': performance_metrics.get('f1_score', 0)
+            }
             
             training_details = {
                 'training_samples': len(X_train),
                 'test_samples': len(X_test),
                 'features': X.shape[1],
-                'training_time': round(training_time, 2),
-                'total_samples': len(X),
-                'feature_names': original_feature_names,  # Use original names, not processed ones
-                'target_column': target_column,
-                'model_type': scenario,
-                'cv_folds': cv_folds,
-                'best_score': float(grid_search.best_score_)
+                'training_time': training_time
             }
             
             return {
@@ -2461,26 +2440,22 @@ print("\\nΓ£à Clustering analysis completed!")
                 'performance': ui_metrics,  # UI-friendly metrics
                 'training_details': training_details,  # Training info for UI
                 'feature_info': {
-                    'feature_names': original_feature_names,  # Use original feature names
+                    'feature_names': list(X.columns),
                     'target_column': target_column,
-                    'problem_type': scenario,
-                    'original_feature_names': original_feature_names,  # Preserve original names
-                    'feature_count': X.shape[1],
-                    'dataset_shape': X.shape
+                    'problem_type': scenario
                 },  # Feature information for frontend
                 'model_info': {
                     'model_directory': model_folder,
                     'training_samples': len(X_train),
                     'test_samples': len(X_test),
                     'feature_count': X.shape[1],
-                    'timestamp': timestamp,
-                    'feature_names': original_feature_names  # Also include here for completeness
+                    'timestamp': timestamp
                 }  # Additional model information
             }
             
         except Exception as e:
             print(f"\n{'='*100}")
-            print(f"Γ¥î TRAINING FAILED FOR {original_name.upper()}")
+            print(f"❌ TRAINING FAILED FOR {original_name.upper()}")
             print(f"{'='*100}")
             print(f"Error: {str(e)}")
             import traceback
@@ -2493,10 +2468,10 @@ print("\\nΓ£à Clustering analysis completed!")
                 'model_name': original_name,
                 'training_time': 0
             }
-            print(f"≡ƒöì Parameter grid size: {len(param_grid)} parameters")
+            print(f"🔍 Parameter grid size: {len(param_grid)} parameters")
             
             # 7. Hyperparameter Tuning with GridSearchCV
-            print(f"\n≡ƒöì STEP 6: HYPERPARAMETER OPTIMIZATION")
+            print(f"\n🔍 STEP 6: HYPERPARAMETER OPTIMIZATION")
             print(f"{'='*50}")
             
             scoring = 'accuracy' if scenario == 'classification' else 'r2'
@@ -2514,25 +2489,25 @@ print("\\nΓ£à Clustering analysis completed!")
                 n_iter=15 if search_method == RandomizedSearchCV else None
             )
             
-            print(f"≡ƒöº Using {search_method.__name__} with 5-fold cross-validation")
-            print(f"≡ƒôè Scoring metric: {scoring}")
+            print(f"🔧 Using {search_method.__name__} with 5-fold cross-validation")
+            print(f"📊 Scoring metric: {scoring}")
             
             # 8. Model Training with Timing
-            print(f"\n≡ƒÜÇ STEP 7: MODEL TRAINING")
+            print(f"\n🚀 STEP 7: MODEL TRAINING")
             print(f"{'='*50}")
             
             training_start = time.time()
             grid_search.fit(X_train, y_train)
             training_time = time.time() - training_start
             
-            print(f"Γ£à Training completed in {training_time:.2f} seconds")
-            print(f"≡ƒÅå Best CV score: {grid_search.best_score_:.4f}")
-            print(f"≡ƒöº Best parameters:")
+            print(f"✅ Training completed in {training_time:.2f} seconds")
+            print(f"🏆 Best CV score: {grid_search.best_score_:.4f}")
+            print(f"🔧 Best parameters:")
             for param, value in grid_search.best_params_.items():
                 print(f"   {param}: {value}")
             
             # 9. Model Evaluation
-            print(f"\n≡ƒôê STEP 8: MODEL EVALUATION")
+            print(f"\n📈 STEP 8: MODEL EVALUATION")
             print(f"{'='*50}")
             
             y_pred = grid_search.predict(X_test)
@@ -2540,20 +2515,20 @@ print("\\nΓ£à Clustering analysis completed!")
             if scenario == 'classification':
                 from sklearn.metrics import accuracy_score, classification_report
                 test_score = accuracy_score(y_test, y_pred)
-                print(f"≡ƒÄ» Test Accuracy: {test_score:.4f} ({test_score*100:.2f}%)")
-                print(f"\n≡ƒôï Classification Report:")
+                print(f"🎯 Test Accuracy: {test_score:.4f} ({test_score*100:.2f}%)")
+                print(f"\n📋 Classification Report:")
                 print(classification_report(y_test, y_pred))
             else:
                 from sklearn.metrics import mean_squared_error, r2_score
                 mse = mean_squared_error(y_test, y_pred)
                 r2 = r2_score(y_test, y_pred)
                 test_score = r2
-                print(f"≡ƒÄ» Test R┬▓ Score: {r2:.4f} ({r2*100:.2f}%)")
-                print(f"≡ƒôè Mean Squared Error: {mse:.4f}")
-                print(f"≡ƒôè Root MSE: {np.sqrt(mse):.4f}")
+                print(f"🎯 Test R² Score: {r2:.4f} ({r2*100:.2f}%)")
+                print(f"📊 Mean Squared Error: {mse:.4f}")
+                print(f"📊 Root MSE: {np.sqrt(mse):.4f}")
             
             # 10. Model Saving
-            print(f"\n≡ƒÆ╛ STEP 9: MODEL SAVING")
+            print(f"\n💾 STEP 9: MODEL SAVING")
             print(f"{'='*50}")
             
             # Create model directory
@@ -2600,16 +2575,16 @@ print("\\nΓ£à Clustering analysis completed!")
             with open(metadata_path, 'w') as f:
                 json.dump(metadata, f, indent=2)
             
-            print(f"Γ£à Model saved: {model_path}")
-            print(f"Γ£à Preprocessing info saved: {preprocessing_path}")
-            print(f"Γ£à Metadata saved: {metadata_path}")
+            print(f"✅ Model saved: {model_path}")
+            print(f"✅ Preprocessing info saved: {preprocessing_path}")
+            print(f"✅ Metadata saved: {metadata_path}")
             
             print(f"\n{'='*80}")
-            print(f"≡ƒÄë COMPREHENSIVE TRAINING COMPLETED SUCCESSFULLY!")
+            print(f"🎉 COMPREHENSIVE TRAINING COMPLETED SUCCESSFULLY!")
             print(f"{'='*80}")
-            print(f"≡ƒôü Model folder: {model_folder}")
-            print(f"≡ƒòÉ Total training time: {training_time:.2f} seconds")
-            print(f"≡ƒÄ» Final score: {test_score:.4f}")
+            print(f"📁 Model folder: {model_folder}")
+            print(f"🕐 Total training time: {training_time:.2f} seconds")
+            print(f"🎯 Final score: {test_score:.4f}")
             
             return {
                 'success': True,
@@ -2626,7 +2601,7 @@ print("\\nΓ£à Clustering analysis completed!")
             }
             
         except Exception as e:
-            print(f"\nΓ¥î TRAINING FAILED: {str(e)}")
+            print(f"\n❌ TRAINING FAILED: {str(e)}")
             return {
                 'success': False,
                 'error': str(e),
@@ -2663,7 +2638,7 @@ print("\\nΓ£à Clustering analysis completed!")
         from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
         
         model_name_lower = model_name.lower()
-        print(f"≡ƒöº Configuring model: {model_name} for {scenario}")
+        print(f"🔧 Configuring model: {model_name} for {scenario}")
         
         # ==================================================
         # CLASSIFICATION MODELS
@@ -2679,7 +2654,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__min_samples_split': [2, 5, 10],
                     'model__min_samples_leaf': [1, 2, 4]
                 }
-                print(f"   Γ£à Random Forest Classifier configured")
+                print(f"   ✅ Random Forest Classifier configured")
                 
             # XGBoost Classifier
             elif 'xgb' in model_name_lower or 'xgboost' in model_name_lower:
@@ -2692,9 +2667,9 @@ print("\\nΓ£à Clustering analysis completed!")
                         'model__learning_rate': [0.01, 0.1, 0.2],
                         'model__subsample': [0.8, 0.9, 1.0]
                     }
-                    print(f"   Γ£à XGBoost Classifier configured (native)")
+                    print(f"   ✅ XGBoost Classifier configured (native)")
                 except ImportError:
-                    print(f"   ΓÜá∩╕Å  XGBoost not available - using GradientBoosting as fallback")
+                    print(f"   ⚠️  XGBoost not available - using GradientBoosting as fallback")
                     model = GradientBoostingClassifier(random_state=42)
                     param_grid = {
                         'model__n_estimators': [100, 200],
@@ -2713,9 +2688,9 @@ print("\\nΓ£à Clustering analysis completed!")
                         'model__learning_rate': [0.05, 0.1, 0.15],
                         'model__feature_fraction': [0.8, 0.9, 1.0]
                     }
-                    print(f"   Γ£à LightGBM Classifier configured (native)")
+                    print(f"   ✅ LightGBM Classifier configured (native)")
                 except ImportError:
-                    print(f"   ΓÜá∩╕Å  LightGBM not available - using GradientBoosting as fallback")
+                    print(f"   ⚠️  LightGBM not available - using GradientBoosting as fallback")
                     model = GradientBoostingClassifier(random_state=42)
                     param_grid = {
                         'model__n_estimators': [100, 200],
@@ -2734,9 +2709,9 @@ print("\\nΓ£à Clustering analysis completed!")
                         'model__learning_rate': [0.05, 0.1, 0.15],
                         'model__l2_leaf_reg': [1, 3, 5]
                     }
-                    print(f"   Γ£à CatBoost Classifier configured (native)")
+                    print(f"   ✅ CatBoost Classifier configured (native)")
                 except ImportError:
-                    print(f"   ΓÜá∩╕Å  CatBoost not available - using RandomForest as fallback")
+                    print(f"   ⚠️  CatBoost not available - using RandomForest as fallback")
                     model = RandomForestClassifier(random_state=42, n_jobs=-1)
                     param_grid = {
                         'model__n_estimators': [100, 200],
@@ -2752,7 +2727,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__kernel': ['linear', 'rbf'],
                     'model__gamma': ['scale', 'auto']
                 }
-                print(f"   Γ£à Support Vector Classifier configured")
+                print(f"   ✅ Support Vector Classifier configured")
                 
             # Logistic Regression
             elif 'logistic' in model_name_lower:
@@ -2762,7 +2737,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__penalty': ['l2'],
                     'model__solver': ['lbfgs', 'liblinear']
                 }
-                print(f"   Γ£à Logistic Regression configured")
+                print(f"   ✅ Logistic Regression configured")
                 
             # Neural Network (MLP)
             elif 'neural' in model_name_lower or 'mlp' in model_name_lower:
@@ -2773,7 +2748,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__alpha': [0.0001, 0.001, 0.01],
                     'model__learning_rate': ['constant', 'adaptive']
                 }
-                print(f"   Γ£à Neural Network Classifier configured")
+                print(f"   ✅ Neural Network Classifier configured")
                 
             # K-Nearest Neighbors
             elif 'knn' in model_name_lower or 'neighbor' in model_name_lower or 'k-neighbor' in model_name_lower:
@@ -2783,7 +2758,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__weights': ['uniform', 'distance'],
                     'model__metric': ['euclidean', 'manhattan']
                 }
-                print(f"   Γ£à K-Nearest Neighbors Classifier configured")
+                print(f"   ✅ K-Nearest Neighbors Classifier configured")
                 
             # Decision Tree
             elif 'decision' in model_name_lower and 'tree' in model_name_lower:
@@ -2794,7 +2769,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__min_samples_leaf': [1, 2, 4, 8],
                     'model__criterion': ['gini', 'entropy']
                 }
-                print(f"   Γ£à Decision Tree Classifier configured")
+                print(f"   ✅ Decision Tree Classifier configured")
                 
             # Gradient Boosting
             elif 'gradient' in model_name_lower and 'boost' in model_name_lower:
@@ -2805,7 +2780,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__learning_rate': [0.01, 0.1, 0.2],
                     'model__subsample': [0.8, 0.9, 1.0]
                 }
-                print(f"   Γ£à Gradient Boosting Classifier configured")
+                print(f"   ✅ Gradient Boosting Classifier configured")
                 
             # Naive Bayes
             elif 'naive' in model_name_lower or 'bayes' in model_name_lower:
@@ -2813,11 +2788,11 @@ print("\\nΓ£à Clustering analysis completed!")
                 param_grid = {
                     'model__var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6]
                 }
-                print(f"   Γ£à Naive Bayes Classifier configured")
+                print(f"   ✅ Naive Bayes Classifier configured")
                 
             # Default fallback
             else:
-                print(f"   ΓÜá∩╕Å  Unknown classification model '{model_name}', using Random Forest as default")
+                print(f"   ⚠️  Unknown classification model '{model_name}', using Random Forest as default")
                 model = RandomForestClassifier(random_state=42, n_jobs=-1)
                 param_grid = {
                     'model__n_estimators': [100, 200],
@@ -2839,7 +2814,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__min_samples_split': [2, 5, 10],
                     'model__min_samples_leaf': [1, 2, 4]
                 }
-                print(f"   Γ£à Random Forest Regressor configured")
+                print(f"   ✅ Random Forest Regressor configured")
                 
             # XGBoost Regressor
             elif 'xgb' in model_name_lower or 'xgboost' in model_name_lower:
@@ -2852,9 +2827,9 @@ print("\\nΓ£à Clustering analysis completed!")
                         'model__learning_rate': [0.01, 0.1, 0.2],
                         'model__subsample': [0.8, 0.9, 1.0]
                     }
-                    print(f"   Γ£à XGBoost Regressor configured (native)")
+                    print(f"   ✅ XGBoost Regressor configured (native)")
                 except ImportError:
-                    print(f"   ΓÜá∩╕Å  XGBoost not available - using GradientBoosting as fallback")
+                    print(f"   ⚠️  XGBoost not available - using GradientBoosting as fallback")
                     model = GradientBoostingRegressor(random_state=42)
                     param_grid = {
                         'model__n_estimators': [100, 200],
@@ -2873,9 +2848,9 @@ print("\\nΓ£à Clustering analysis completed!")
                         'model__learning_rate': [0.05, 0.1, 0.15],
                         'model__feature_fraction': [0.8, 0.9, 1.0]
                     }
-                    print(f"   Γ£à LightGBM Regressor configured (native)")
+                    print(f"   ✅ LightGBM Regressor configured (native)")
                 except ImportError:
-                    print(f"   ΓÜá∩╕Å  LightGBM not available - using GradientBoosting as fallback")
+                    print(f"   ⚠️  LightGBM not available - using GradientBoosting as fallback")
                     model = GradientBoostingRegressor(random_state=42)
                     param_grid = {
                         'model__n_estimators': [100, 200],
@@ -2894,9 +2869,9 @@ print("\\nΓ£à Clustering analysis completed!")
                         'model__learning_rate': [0.05, 0.1, 0.15],
                         'model__l2_leaf_reg': [1, 3, 5]
                     }
-                    print(f"   Γ£à CatBoost Regressor configured (native)")
+                    print(f"   ✅ CatBoost Regressor configured (native)")
                 except ImportError:
-                    print(f"   ΓÜá∩╕Å  CatBoost not available - using RandomForest as fallback")
+                    print(f"   ⚠️  CatBoost not available - using RandomForest as fallback")
                     model = RandomForestRegressor(random_state=42, n_jobs=-1)
                     param_grid = {
                         'model__n_estimators': [100, 200],
@@ -2912,7 +2887,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__kernel': ['linear', 'rbf'],
                     'model__gamma': ['scale', 'auto']
                 }
-                print(f"   Γ£à Support Vector Regressor configured")
+                print(f"   ✅ Support Vector Regressor configured")
                 
             # Linear Regression
             elif 'linear' in model_name_lower and 'regression' in model_name_lower:
@@ -2921,7 +2896,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__fit_intercept': [True, False],
                     'model__positive': [True, False]
                 }
-                print(f"   Γ£à Linear Regression configured")
+                print(f"   ✅ Linear Regression configured")
                 
             # Ridge Regression
             elif 'ridge' in model_name_lower:
@@ -2931,7 +2906,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__fit_intercept': [True, False],
                     'model__solver': ['auto', 'svd', 'cholesky', 'lsqr']
                 }
-                print(f"   Γ£à Ridge Regression configured")
+                print(f"   ✅ Ridge Regression configured")
                 
             # Lasso Regression
             elif 'lasso' in model_name_lower:
@@ -2941,7 +2916,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__fit_intercept': [True, False],
                     'model__selection': ['cyclic', 'random']
                 }
-                print(f"   Γ£à Lasso Regression configured")
+                print(f"   ✅ Lasso Regression configured")
                 
             # ElasticNet
             elif 'elastic' in model_name_lower or 'elasticnet' in model_name_lower:
@@ -2951,7 +2926,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__l1_ratio': [0.1, 0.5, 0.7, 0.9],
                     'model__fit_intercept': [True, False]
                 }
-                print(f"   Γ£à ElasticNet Regression configured")
+                print(f"   ✅ ElasticNet Regression configured")
                 
             # Gradient Boosting Regressor
             elif 'gradient' in model_name_lower and 'boost' in model_name_lower:
@@ -2962,7 +2937,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__learning_rate': [0.01, 0.1, 0.2],
                     'model__subsample': [0.8, 0.9, 1.0]
                 }
-                print(f"   Γ£à Gradient Boosting Regressor configured")
+                print(f"   ✅ Gradient Boosting Regressor configured")
                 
             # Neural Network Regressor
             elif 'neural' in model_name_lower or 'mlp' in model_name_lower:
@@ -2973,11 +2948,11 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__alpha': [0.0001, 0.001, 0.01],
                     'model__learning_rate': ['constant', 'adaptive']
                 }
-                print(f"   Γ£à Neural Network Regressor configured")
+                print(f"   ✅ Neural Network Regressor configured")
                 
             # Default fallback
             else:
-                print(f"   ΓÜá∩╕Å  Unknown regression model '{model_name}', using Random Forest as default")
+                print(f"   ⚠️  Unknown regression model '{model_name}', using Random Forest as default")
                 model = RandomForestRegressor(random_state=42, n_jobs=-1)
                 param_grid = {
                     'model__n_estimators': [100, 200],
@@ -2998,7 +2973,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__init': ['k-means++', 'random'],
                     'model__algorithm': ['lloyd', 'elkan']
                 }
-                print(f"   Γ£à KMeans Clustering configured")
+                print(f"   ✅ KMeans Clustering configured")
                 
             # DBSCAN
             elif 'dbscan' in model_name_lower:
@@ -3008,7 +2983,7 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__min_samples': [3, 5, 7, 10],
                     'model__metric': ['euclidean', 'manhattan']
                 }
-                print(f"   Γ£à DBSCAN Clustering configured")
+                print(f"   ✅ DBSCAN Clustering configured")
                 
             # Hierarchical/Agglomerative Clustering
             elif 'hierarchical' in model_name_lower or 'agglomerative' in model_name_lower:
@@ -3018,11 +2993,11 @@ print("\\nΓ£à Clustering analysis completed!")
                     'model__linkage': ['ward', 'complete', 'average', 'single'],
                     'model__metric': ['euclidean', 'manhattan']
                 }
-                print(f"   Γ£à Hierarchical Clustering configured")
+                print(f"   ✅ Hierarchical Clustering configured")
                 
             # Default fallback
             else:
-                print(f"   ΓÜá∩╕Å  Unknown clustering model '{model_name}', using KMeans as default")
+                print(f"   ⚠️  Unknown clustering model '{model_name}', using KMeans as default")
                 model = KMeans(random_state=42, n_init=10)
                 param_grid = {
                     'model__n_clusters': [3, 4, 5],
@@ -3031,7 +3006,7 @@ print("\\nΓ£à Clustering analysis completed!")
         
         # Default fallback for any unexpected scenario
         else:
-            print(f"   ΓÜá∩╕Å  Unknown scenario '{scenario}', using Random Forest Classifier as default")
+            print(f"   ⚠️  Unknown scenario '{scenario}', using Random Forest Classifier as default")
             model = RandomForestClassifier(random_state=42, n_jobs=-1)
             param_grid = {
                 'model__n_estimators': [100, 200],
@@ -3043,9 +3018,643 @@ print("\\nΓ£à Clustering analysis completed!")
         for param_values in param_grid.values():
             total_combinations *= len(param_values) if isinstance(param_values, list) else 1
             
-        print(f"   ≡ƒöó Parameter combinations to test: {total_combinations}")
+        print(f"   🔢 Parameter combinations to test: {total_combinations}")
         
         return model, param_grid
+
+# Create a global instance
+ml_core = MLCore()
+        from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+        from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso, ElasticNet
+        from sklearn.svm import SVC, SVR
+        from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+        from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+        from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
+        from sklearn.naive_bayes import GaussianNB
+        from sklearn.neural_network import MLPClassifier, MLPRegressor
+        from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+        
+        # Try to import advanced models
+        try:
+            from xgboost import XGBClassifier, XGBRegressor
+            XGBOOST_AVAILABLE = True
+            print(f"✅ XGBoost available for enhanced gradient boosting")
+        except ImportError:
+            XGBOOST_AVAILABLE = False
+            print(f"⚠️  XGBoost not available - using sklearn GradientBoosting as fallback")
+            
+        try:
+            from lightgbm import LGBMClassifier, LGBMRegressor
+            LIGHTGBM_AVAILABLE = True
+            print(f"✅ LightGBM available for efficient gradient boosting")
+        except ImportError:
+            LIGHTGBM_AVAILABLE = False
+            print(f"⚠️  LightGBM not available - using sklearn GradientBoosting as fallback")
+            
+        try:
+            from catboost import CatBoostClassifier, CatBoostRegressor
+            CATBOOST_AVAILABLE = True
+            print(f"✅ CatBoost available for categorical feature handling")
+        except ImportError:
+            CATBOOST_AVAILABLE = False
+            print(f"⚠️  CatBoost not available - using RandomForest as fallback")
+        
+        print(f"\n🔧 CONFIGURING MODEL-SPECIFIC TRAINING FOR: {model_name.upper()}")
+        print(f"📊 Scenario: {scenario.upper()}")
+        
+        if scenario == "classification":
+            # 🎯 COMPREHENSIVE CLASSIFICATION MODEL CONFIGURATIONS
+            # Each model has specific parameter grids optimized for high accuracy
+            models_config = {
+                "Random Forest": {
+                    "model": RandomForestClassifier(
+                        random_state=42, 
+                        n_jobs=-1,           # Use all CPU cores
+                        warm_start=True,     # Enable incremental learning
+                        oob_score=True       # Out-of-bag score for validation
+                    ),
+                    "params": {
+                        'model__n_estimators': [200, 300, 500],         # More trees for better accuracy
+                        'model__max_depth': [10, 15, 20, None],         # Various depth levels
+                        'model__min_samples_split': [2, 5, 10],         # Split criteria
+                        'model__min_samples_leaf': [1, 2, 4],           # Leaf criteria
+                        'model__max_features': ['sqrt', 'log2', None],  # Feature selection
+                        'model__bootstrap': [True, False],              # Bootstrap samples
+                        'model__criterion': ['gini', 'entropy']         # Split criteria
+                    },
+                    "training_time": "15-45 seconds for optimal accuracy"
+                },
+                "XGBoost": {
+                    "model": XGBClassifier(
+                        random_state=42, 
+                        eval_metric='logloss',
+                        use_label_encoder=False,
+                        n_jobs=-1,
+                        tree_method='hist'    # Faster histogram-based method
+                    ) if XGBOOST_AVAILABLE else GradientBoostingClassifier(random_state=42),
+                    "params": {
+                        'model__n_estimators': [200, 300, 500],
+                        'model__max_depth': [4, 6, 8, 10],
+                        'model__learning_rate': [0.01, 0.05, 0.1, 0.2],
+                        'model__subsample': [0.8, 0.9, 1.0],
+                        'model__colsample_bytree': [0.8, 0.9, 1.0],
+                        'model__reg_alpha': [0, 0.01, 0.1],
+                        'model__reg_lambda': [1, 1.5, 2]
+                    } if XGBOOST_AVAILABLE else {
+                        'model__n_estimators': [100, 200, 300],
+                        'model__learning_rate': [0.05, 0.1, 0.15],
+                        'model__max_depth': [3, 5, 7]
+                    },
+                    "training_time": "20-60 seconds for gradient boosting optimization"
+                },
+                "LightGBM": {
+                    "model": LGBMClassifier(
+                        random_state=42,
+                        verbose=-1,
+                        n_jobs=-1,
+                        boosting_type='gbdt',
+                        objective='multiclass' if scenario == 'multiclass' else 'binary'
+                    ) if LIGHTGBM_AVAILABLE else GradientBoostingClassifier(random_state=42),
+                    "params": {
+                        'model__n_estimators': [200, 300, 500],
+                        'model__num_leaves': [31, 50, 75, 100],
+                        'model__learning_rate': [0.05, 0.1, 0.15, 0.2],
+                        'model__feature_fraction': [0.8, 0.9, 1.0],
+                        'model__bagging_fraction': [0.8, 0.9, 1.0],
+                        'model__reg_alpha': [0, 0.01, 0.1],
+                        'model__reg_lambda': [0, 0.01, 0.1]
+                    } if LIGHTGBM_AVAILABLE else {
+                        'model__n_estimators': [100, 200, 300],
+                        'model__learning_rate': [0.05, 0.1, 0.15],
+                        'model__max_depth': [3, 5, 7]
+                    },
+                    "training_time": "15-40 seconds for efficient gradient boosting"
+                },
+                "CatBoost": {
+                    "model": CatBoostClassifier(
+                        random_state=42,
+                        verbose=False,
+                        thread_count=-1,
+                        early_stopping_rounds=50
+                    ) if CATBOOST_AVAILABLE else RandomForestClassifier(random_state=42, n_jobs=-1),
+                    "params": {
+                        'model__iterations': [200, 300, 500],
+                        'model__depth': [4, 6, 8, 10],
+                        'model__learning_rate': [0.05, 0.1, 0.15],
+                        'model__l2_leaf_reg': [1, 3, 5, 10],
+                        'model__border_count': [32, 64, 128],
+                        'model__bagging_temperature': [0, 1],
+                        'model__random_strength': [1, 2, 3]
+                    } if CATBOOST_AVAILABLE else {
+                        'model__n_estimators': [200, 300, 500],
+                        'model__max_depth': [10, 15, 20],
+                        'model__min_samples_split': [2, 5, 10]
+                    },
+                    "training_time": "25-60 seconds for categorical optimization"
+                },
+                "Support Vector Machine": {
+                    "model": SVC(
+                        random_state=42, 
+                        probability=True,    # Enable probability estimates
+                        cache_size=1000      # Increase cache for faster training
+                    ),
+                    "params": {
+                        'model__C': [0.1, 1, 10, 100, 1000],
+                        'model__kernel': ['linear', 'rbf', 'poly'],
+                        'model__gamma': ['scale', 'auto', 0.001, 0.01, 0.1],
+                        'model__degree': [2, 3, 4],  # For polynomial kernel
+                        'model__coef0': [0, 0.1, 1],  # For poly/sigmoid kernels
+                        'model__class_weight': [None, 'balanced']
+                    },
+                    "training_time": "30-90 seconds for kernel optimization"
+                },
+                "Logistic Regression": {
+                    "model": LogisticRegression(
+                        random_state=42, 
+                        max_iter=2000,       # More iterations for convergence
+                        n_jobs=-1,
+                        warm_start=True
+                    ),
+                    "params": {
+                        'model__C': [0.01, 0.1, 1, 10, 100],
+                        'model__penalty': ['l1', 'l2', 'elasticnet', None],
+                        'model__solver': ['liblinear', 'saga', 'lbfgs'],
+                        'model__l1_ratio': [0.15, 0.5, 0.85],  # For elasticnet
+                        'model__fit_intercept': [True, False],
+                        'model__class_weight': [None, 'balanced']
+                    },
+                    "training_time": "10-30 seconds for linear optimization"
+                },
+                "Neural Network": {
+                    "model": MLPClassifier(
+                        random_state=42, 
+                        max_iter=500,       # More iterations
+                        early_stopping=True,
+                        validation_fraction=0.1,
+                        n_iter_no_change=20
+                    ),
+                    "params": {
+                        'model__hidden_layer_sizes': [(50,), (100,), (150,), (100, 50), (150, 100), (200, 100, 50)],
+                        'model__activation': ['relu', 'tanh', 'logistic'],
+                        'model__alpha': [0.0001, 0.001, 0.01, 0.1],
+                        'model__learning_rate': ['constant', 'adaptive'],
+                        'model__learning_rate_init': [0.001, 0.01, 0.1],
+                        'model__solver': ['adam', 'lbfgs'],
+                        'model__batch_size': ['auto', 32, 64, 128]
+                    },
+                    "training_time": "45-120 seconds for neural network optimization"
+                },
+                "K-Neighbors": {
+                    "model": KNeighborsClassifier(n_jobs=-1),
+                    "params": {
+                        'model__n_neighbors': [3, 5, 7, 9, 11, 15, 21],
+                        'model__weights': ['uniform', 'distance'],
+                        'model__algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'],
+                        'model__metric': ['euclidean', 'manhattan', 'minkowski'],
+                        'model__p': [1, 2, 3],  # For minkowski metric
+                        'model__leaf_size': [20, 30, 40, 50]
+                    },
+                    "training_time": "5-20 seconds for distance-based classification"
+                },
+                "Decision Tree": {
+                    "model": DecisionTreeClassifier(
+                        random_state=42,
+                        presort=False        # Deprecated but good for older versions
+                    ),
+                    "params": {
+                        'model__criterion': ['gini', 'entropy'],
+                        'model__splitter': ['best', 'random'],
+                        'model__max_depth': [3, 5, 7, 10, 15, 20, None],
+                        'model__min_samples_split': [2, 5, 10, 20],
+                        'model__min_samples_leaf': [1, 2, 4, 8],
+                        'model__max_features': ['sqrt', 'log2', None],
+                        'model__class_weight': [None, 'balanced'],
+                        'model__ccp_alpha': [0.0, 0.01, 0.1]  # Pruning parameter
+                    },
+                    "training_time": "5-15 seconds for tree construction"
+                },
+                "Gradient Boosting": {
+                    "model": GradientBoostingClassifier(
+                        random_state=42,
+                        warm_start=True,
+                        validation_fraction=0.1,
+                        n_iter_no_change=10
+                    ),
+                    "params": {
+                        'model__n_estimators': [100, 200, 300, 500],
+                        'model__learning_rate': [0.05, 0.1, 0.15, 0.2],
+                        'model__max_depth': [3, 4, 5, 6, 7],
+                        'model__min_samples_split': [2, 5, 10],
+                        'model__min_samples_leaf': [1, 2, 4],
+                        'model__subsample': [0.8, 0.9, 1.0],
+                        'model__max_features': ['sqrt', 'log2', None],
+                        'model__criterion': ['friedman_mse', 'squared_error']
+                    },
+                    "training_time": "30-90 seconds for gradient boosting"
+                },
+                "Naive Bayes": {
+                    "model": GaussianNB(),
+                    "params": {
+                        'model__var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5],
+                        'model__priors': [None]  # Use class frequencies
+                    },
+                    "training_time": "2-8 seconds for probabilistic classification"
+                }
+            }
+        
+        elif scenario == "regression":
+            # 🎯 COMPREHENSIVE REGRESSION MODEL CONFIGURATIONS
+            models_config = {
+                "Random Forest Regressor": {
+                    "model": RandomForestRegressor(
+                        random_state=42,
+                        n_jobs=-1,
+                        warm_start=True,
+                        oob_score=True
+                    ),
+                    "params": {
+                        'model__n_estimators': [200, 300, 500],
+                        'model__max_depth': [10, 15, 20, None],
+                        'model__min_samples_split': [2, 5, 10],
+                        'model__min_samples_leaf': [1, 2, 4],
+                        'model__max_features': ['sqrt', 'log2', None],
+                        'model__bootstrap': [True, False],
+                        'model__criterion': ['squared_error', 'absolute_error', 'poisson']
+                    },
+                    "training_time": "15-45 seconds for ensemble regression"
+                },
+                "XGBoost Regressor": {
+                    "model": XGBRegressor(
+                        random_state=42,
+                        n_jobs=-1,
+                        tree_method='hist'
+                    ) if XGBOOST_AVAILABLE else GradientBoostingRegressor(random_state=42),
+                    "params": {
+                        'model__n_estimators': [200, 300, 500],
+                        'model__max_depth': [4, 6, 8, 10],
+                        'model__learning_rate': [0.01, 0.05, 0.1, 0.2],
+                        'model__subsample': [0.8, 0.9, 1.0],
+                        'model__colsample_bytree': [0.8, 0.9, 1.0],
+                        'model__reg_alpha': [0, 0.01, 0.1],
+                        'model__reg_lambda': [1, 1.5, 2]
+                    } if XGBOOST_AVAILABLE else {
+                        'model__n_estimators': [100, 200, 300],
+                        'model__learning_rate': [0.05, 0.1, 0.15],
+                        'model__max_depth': [3, 5, 7]
+                    },
+                    "training_time": "20-60 seconds for gradient boosting regression"
+                },
+                "LightGBM Regressor": {
+                    "model": LGBMRegressor(
+                        random_state=42,
+                        verbose=-1,
+                        n_jobs=-1,
+                        boosting_type='gbdt',
+                        objective='regression'
+                    ) if LIGHTGBM_AVAILABLE else GradientBoostingRegressor(random_state=42),
+                    "params": {
+                        'model__n_estimators': [200, 300, 500],
+                        'model__num_leaves': [31, 50, 75, 100],
+                        'model__learning_rate': [0.05, 0.1, 0.15, 0.2],
+                        'model__feature_fraction': [0.8, 0.9, 1.0],
+                        'model__bagging_fraction': [0.8, 0.9, 1.0],
+                        'model__reg_alpha': [0, 0.01, 0.1],
+                        'model__reg_lambda': [0, 0.01, 0.1]
+                    } if LIGHTGBM_AVAILABLE else {
+                        'model__n_estimators': [100, 200, 300],
+                        'model__learning_rate': [0.05, 0.1, 0.15],
+                        'model__max_depth': [3, 5, 7]
+                    },
+                    "training_time": "15-40 seconds for efficient regression"
+                },
+                "CatBoost Regressor": {
+                    "model": CatBoostRegressor(
+                        random_state=42,
+                        verbose=False,
+                        thread_count=-1,
+                        early_stopping_rounds=50
+                    ) if CATBOOST_AVAILABLE else RandomForestRegressor(random_state=42, n_jobs=-1),
+                    "params": {
+                        'model__iterations': [200, 300, 500],
+                        'model__depth': [4, 6, 8, 10],
+                        'model__learning_rate': [0.05, 0.1, 0.15],
+                        'model__l2_leaf_reg': [1, 3, 5, 10],
+                        'model__border_count': [32, 64, 128],
+                        'model__bagging_temperature': [0, 1],
+                        'model__random_strength': [1, 2, 3]
+                    } if CATBOOST_AVAILABLE else {
+                        'model__n_estimators': [200, 300, 500],
+                        'model__max_depth': [10, 15, 20],
+                        'model__min_samples_split': [2, 5, 10]
+                    },
+                    "training_time": "25-60 seconds for categorical regression"
+                },
+                "Support Vector Regressor": {
+                    "model": SVR(cache_size=1000),
+                    "params": {
+                        'model__C': [0.1, 1, 10, 100, 1000],
+                        'model__kernel': ['linear', 'rbf', 'poly'],
+                        'model__gamma': ['scale', 'auto', 0.001, 0.01, 0.1],
+                        'model__degree': [2, 3, 4],
+                        'model__coef0': [0, 0.1, 1],
+                        'model__epsilon': [0.01, 0.1, 0.2]
+                    },
+                    "training_time": "30-90 seconds for kernel regression"
+                },
+                "Linear Regression": {
+                    "model": LinearRegression(n_jobs=-1),
+                    "params": {
+                        'model__fit_intercept': [True, False],
+                        'model__normalize': [True, False],
+                        'model__copy_X': [True, False]
+                    },
+                    "training_time": "1-5 seconds for linear fitting"
+                },
+                "Ridge Regression": {
+                    "model": Ridge(random_state=42),
+                    "params": {
+                        'model__alpha': [0.1, 1.0, 10.0, 100.0, 1000.0],
+                        'model__fit_intercept': [True, False],
+                        'model__normalize': [True, False],
+                        'model__solver': ['auto', 'svd', 'cholesky', 'lsqr', 'sparse_cg'],
+                        'model__max_iter': [1000, 2000, 5000]
+                    },
+                    "training_time": "2-10 seconds for regularized regression"
+                },
+                "Lasso Regression": {
+                    "model": Lasso(random_state=42, max_iter=3000),
+                    "params": {
+                        'model__alpha': [0.1, 1.0, 10.0, 100.0, 1000.0],
+                        'model__fit_intercept': [True, False],
+                        'model__normalize': [True, False],
+                        'model__precompute': [False, True, 'auto'],
+                        'model__selection': ['cyclic', 'random']
+                    },
+                    "training_time": "3-15 seconds for L1 regularized regression"
+                },
+                "ElasticNet": {
+                    "model": ElasticNet(random_state=42, max_iter=3000),
+                    "params": {
+                        'model__alpha': [0.1, 1.0, 10.0, 100.0],
+                        'model__l1_ratio': [0.1, 0.3, 0.5, 0.7, 0.9],
+                        'model__fit_intercept': [True, False],
+                        'model__normalize': [True, False],
+                        'model__precompute': [False, True, 'auto'],
+                        'model__selection': ['cyclic', 'random']
+                    },
+                    "training_time": "5-20 seconds for elastic net regression"
+                },
+                "Gradient Boosting Regressor": {
+                    "model": GradientBoostingRegressor(
+                        random_state=42,
+                        warm_start=True,
+                        validation_fraction=0.1,
+                        n_iter_no_change=10
+                    ),
+                    "params": {
+                        'model__n_estimators': [100, 200, 300, 500],
+                        'model__learning_rate': [0.05, 0.1, 0.15, 0.2],
+                        'model__max_depth': [3, 4, 5, 6, 7],
+                        'model__min_samples_split': [2, 5, 10],
+                        'model__min_samples_leaf': [1, 2, 4],
+                        'model__subsample': [0.8, 0.9, 1.0],
+                        'model__max_features': ['sqrt', 'log2', None],
+                        'model__criterion': ['friedman_mse', 'squared_error']
+                    },
+                    "training_time": "30-90 seconds for gradient boosting regression"
+                },
+                "Neural Network Regressor": {
+                    "model": MLPRegressor(
+                        random_state=42,
+                        max_iter=500,
+                        early_stopping=True,
+                        validation_fraction=0.1,
+                        n_iter_no_change=20
+                    ),
+                    "params": {
+                        'model__hidden_layer_sizes': [(50,), (100,), (150,), (100, 50), (150, 100), (200, 100, 50)],
+                        'model__activation': ['relu', 'tanh', 'logistic'],
+                        'model__alpha': [0.0001, 0.001, 0.01, 0.1],
+                        'model__learning_rate': ['constant', 'adaptive'],
+                        'model__learning_rate_init': [0.001, 0.01, 0.1],
+                        'model__solver': ['adam', 'lbfgs'],
+                        'model__batch_size': ['auto', 32, 64, 128]
+                    },
+                    "training_time": "45-120 seconds for neural network regression"
+                }
+            }
+        
+        else:  # clustering
+            # 🎯 COMPREHENSIVE CLUSTERING MODEL CONFIGURATIONS
+            models_config = {
+                "KMeans": {
+                    "model": KMeans(
+                        random_state=42,
+                        n_init=10,
+                        max_iter=300,
+                        algorithm='auto'
+                    ),
+                    "params": {
+                        'model__n_clusters': [2, 3, 4, 5, 6, 7, 8, 10, 12, 15],
+                        'model__init': ['k-means++', 'random'],
+                        'model__tol': [1e-4, 1e-3, 1e-2],
+                        'model__algorithm': ['auto', 'full', 'elkan']
+                    },
+                    "training_time": "5-30 seconds for centroid-based clustering"
+                },
+                "DBSCAN": {
+                    "model": DBSCAN(n_jobs=-1),
+                    "params": {
+                        'model__eps': [0.1, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0],
+                        'model__min_samples': [3, 5, 7, 10, 15, 20],
+                        'model__metric': ['euclidean', 'manhattan', 'cosine'],
+                        'model__algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
+                    },
+                    "training_time": "10-45 seconds for density-based clustering"
+                },
+                "Hierarchical Clustering": {
+                    "model": AgglomerativeClustering(),
+                    "params": {
+                        'model__n_clusters': [2, 3, 4, 5, 6, 7, 8, 10, 12, 15],
+                        'model__linkage': ['ward', 'complete', 'average', 'single'],
+                        'model__metric': ['euclidean', 'manhattan', 'cosine', 'l1', 'l2'],
+                        'model__compute_full_tree': ['auto', True, False]
+                    },
+                    "training_time": "15-60 seconds for hierarchical clustering"
+                }
+            }
+        
+        # Get model configuration
+        if model_name in models_config:
+            config = models_config[model_name]
+            training_time = config.get("training_time", "10-30 seconds")
+            print(f"⏱️  Expected training time: {training_time}")
+            print(f"🔢 Parameter combinations: {self._count_param_combinations(config['params'])}")
+            return config["model"], config["params"]
+        else:
+            # Smart fallback based on model name keywords
+            print(f"⚠️  Exact model '{model_name}' not found, attempting smart mapping...")
+            
+            model_name_lower = model_name.lower().replace('-', ' ').replace('_', ' ')
+            
+            # Try to find the closest match
+            for config_name in models_config.keys():
+                if any(word in model_name_lower for word in config_name.lower().split()):
+                    print(f"🔄 Mapping '{model_name}' to '{config_name}'")
+                    config = models_config[config_name]
+                    return config["model"], config["params"]
+            
+            # Ultimate fallback
+            print(f"⚠️  No suitable mapping found, using Random Forest as fallback")
+            if scenario == "classification":
+                fallback_model = RandomForestClassifier(random_state=42, n_jobs=-1)
+                fallback_params = {
+                    'model__n_estimators': [100, 200, 300],
+                    'model__max_depth': [10, 15, None],
+                    'model__min_samples_split': [2, 5, 10]
+                }
+            elif scenario == "regression":
+                fallback_model = RandomForestRegressor(random_state=42, n_jobs=-1)
+                fallback_params = {
+                    'model__n_estimators': [100, 200, 300],
+                    'model__max_depth': [10, 15, None],
+                    'model__min_samples_split': [2, 5, 10]
+                }
+            else:
+                fallback_model = KMeans(random_state=42, n_init=10)
+                fallback_params = {
+                    'model__n_clusters': [3, 4, 5, 6, 7],
+                    'model__init': ['k-means++', 'random']
+                }
+            
+            return fallback_model, fallback_params
+    
+    def _count_param_combinations(self, param_grid: dict) -> int:
+        """Count total parameter combinations for training estimation"""
+        import math
+        total = 1
+        for param_values in param_grid.values():
+            if isinstance(param_values, list):
+                total *= len(param_values)
+            else:
+                total *= 1
+        return total
+
+    def _save_pipeline_model(self, pipeline, model_name, performance, metadata):
+        """Save trained pipeline model"""
+        import os
+        import joblib
+        from datetime import datetime
+        import json
+        
+        # Create model directory
+        safe_name = model_name.lower().replace(' ', '_').replace('-', '_')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_folder = f"models/{safe_name}_{timestamp}"
+        os.makedirs(model_folder, exist_ok=True)
+        
+        # Save the pipeline
+        joblib.dump(pipeline, os.path.join(model_folder, 'model.pkl'))
+        
+        # Save metadata
+        metadata.update({
+            'model_name': model_name,
+            'timestamp': timestamp,
+            'performance': performance
+        })
+        
+        with open(os.path.join(model_folder, 'metadata.json'), 'w') as f:
+            json.dump(metadata, f, indent=2, default=str)
+        
+        print(f"💾 Model saved to: {model_folder}")
+        return model_folder
+
+    def train_advanced_model(self, model_name: str, file_path: str, target_column: str) -> Dict[str, Any]:
+        """
+        Train a model using Pipeline + GridSearchCV for maximum accuracy (90%+)
+        
+        Args:
+            model_name (str): Name of the model to train
+            file_path (str): Path to the dataset file
+            target_column (str): Name of the target column
+            
+        Returns:
+            dict: Training results with performance metrics
+        """
+        try:
+            print(f"\n🚀 STARTING HIGH-ACCURACY PIPELINE TRAINING")
+            print("="*80)
+            print(f"🤖 Model: {model_name}")
+            print(f"📄 Dataset: {file_path}")
+            print(f"🎯 Target: {target_column}")
+            
+            # Map model names from recommendation system to internal names
+            mapped_model_name = self._map_model_name(model_name)
+            print(f"🔄 Mapped to trainer name: {mapped_model_name}")
+            
+            # Execute high-accuracy Pipeline + GridSearchCV training
+            result = self._execute_pipeline_training(
+                model_name=mapped_model_name,
+                original_name=model_name,
+                file_path=file_path,
+                target_column=target_column
+            )
+            
+            if result['success']:
+                print(f"\n🎉 ADVANCED TRAINING COMPLETED SUCCESSFULLY!")
+                print(f"📁 Model folder: {result['model_folder']}")
+                print(f"🎯 {result['score_name']}: {result['main_score']:.4f} ({result['main_score']*100:.2f}%)")
+                
+                if result.get('accuracy_achieved', False):
+                    print(f"✅ SUCCESS: Achieved target accuracy!")
+                else:
+                    print(f"⚠️  Target accuracy not met but model trained successfully")
+            else:
+                print(f"❌ ADVANCED TRAINING FAILED: {result.get('error', 'Unknown error')}")
+            
+            return result
+            
+        except Exception as e:
+            print(f"❌ Error in advanced model training: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'model_name': model_name
+            }
+    
+    def get_available_models(self, problem_type: str = None) -> List[str]:
+        """
+        Get list of available models for training
+        
+        Args:
+            problem_type (str): 'classification' or 'regression' or None for all
+            
+        Returns:
+            list: Available model names
+        """
+        if problem_type == 'classification':
+            return list(self.advanced_trainer.classification_models.keys())
+        elif problem_type == 'regression':
+            return list(self.advanced_trainer.regression_models.keys())
+        else:
+            # Return all models
+            all_models = list(self.advanced_trainer.classification_models.keys())
+            all_models.extend(list(self.advanced_trainer.regression_models.keys()))
+            return all_models
+    
+    def predict_with_model(self, model_folder: str, new_data: pd.DataFrame, timestamp: str = None) -> np.ndarray:
+        """
+        Make predictions using a trained model
+        
+        Args:
+            model_folder (str): Path to the model folder
+            new_data (pd.DataFrame): New data for prediction
+            timestamp (str): Specific model timestamp (optional)
+            
+        Returns:
+            np.ndarray: Predictions
+        """
+        return self.advanced_trainer.predict(model_folder, new_data, timestamp)
 
 # Create a global instance
 ml_core = MLCore()

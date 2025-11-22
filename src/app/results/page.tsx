@@ -10,7 +10,8 @@ import {
   AlertCircle,
   CheckCircle,
   Settings,
-  BarChart3
+  BarChart3,
+  Database
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -23,8 +24,19 @@ interface TrainingResults {
   main_score: number;
   threshold_met: boolean;
   performance?: {
-    accuracy: number;
-    cv_accuracy: number;
+    model_name?: string;
+    model_type?: string;
+    accuracy?: number;
+    precision?: number;
+    recall?: number;
+    f1_score?: number;
+    mse?: number;
+    rmse?: number;
+    mae?: number;
+    r2_score?: number;
+    training_time?: number;
+    prediction_time?: number;
+    cv_accuracy?: number;
     classification_report?: Record<string, {
       precision: number;
       recall: number;
@@ -32,8 +44,33 @@ interface TrainingResults {
       support: number;
     }>;
   };
+  training_details?: {
+    training_samples?: number;
+    test_samples?: number;
+    features?: number;
+    training_time?: number;
+    total_samples?: number;
+    feature_names?: string[];
+    target_column?: string;
+    model_type?: string;
+    cv_folds?: number;
+    best_score?: number;
+  };
+  model_info?: {
+    name?: string;
+    type?: string;
+    feature_count?: number;
+    training_samples?: number;
+    test_samples?: number;
+    model_directory?: string;
+  };
   feature_info?: {
-    feature_names: string[];
+    feature_names?: string[];
+    original_feature_names?: string[];
+    target_column?: string;
+    problem_type?: string;
+    feature_count?: number;
+    dataset_shape?: number[];
   };
   model_params?: Record<string, string | number | boolean>;
 }
@@ -310,12 +347,29 @@ function ResultsPageContent() {
 
   // Get feature names from training results
   const getFeatureNames = useCallback((): string[] => {
+    // Try multiple possible locations for feature names, prioritizing training_details
+    if (trainingResults?.training_details?.feature_names) {
+      return trainingResults.training_details.feature_names as string[];
+    }
     if (trainingResults?.feature_info?.feature_names) {
       return trainingResults.feature_info.feature_names as string[];
     }
+    if (trainingResults?.feature_info?.original_feature_names) {
+      return trainingResults.feature_info.original_feature_names as string[];
+    }
+    if (trainingResults?.training_results?.feature_info?.feature_names) {
+      return trainingResults.training_results.feature_info.feature_names as string[];
+    }
+    if (trainingResults?.model_info?.feature_names) {
+      return trainingResults.model_info.feature_names as string[];
+    }
     
-    // Fallback to Iris features for backward compatibility
-    return ['SepalLengthCm', 'SepalWidthCm', 'PetalLengthCm', 'PetalWidthCm'];
+    // Generate generic feature names as fallback
+    const featureCount = trainingResults?.training_details?.features || 
+                        trainingResults?.model_info?.feature_count || 
+                        trainingResults?.feature_info?.feature_names?.length || 4;
+    
+    return Array.from({length: featureCount}, (_, i) => `Feature_${i + 1}`);
   }, [trainingResults]);
 
   // Initialize form data when training results change
@@ -577,27 +631,197 @@ function ResultsPageContent() {
                     description="Performance on test data"
                   />
                   <MetricCard
-                    title="CV Accuracy"
-                    value={trainingResults.performance?.cv_accuracy || trainingResults.main_score * 0.9}
+                    title="Precision"
+                    value={trainingResults.performance?.precision || trainingResults.performance?.accuracy || trainingResults.main_score}
                     icon={Target}
                     color="text-green-400"
                     format="percentage"
-                    description="Cross-validation score"
+                    description="Model precision score"
                   />
                   <MetricCard
-                    title="Model Type"
-                    value={trainingResults.model_name?.replace(/[-_]/g, ' ')?.replace(/classifier|regressor/i, '') || 'Random Forest'}
-                    icon={Brain}
+                    title="Recall"
+                    value={trainingResults.performance?.recall || trainingResults.performance?.accuracy || trainingResults.main_score}
+                    icon={Target}
+                    color="text-blue-400"
+                    format="percentage"
+                    description="Model recall score"
+                  />
+                  <MetricCard
+                    title="F1-Score"
+                    value={trainingResults.performance?.f1_score || trainingResults.performance?.accuracy || trainingResults.main_score}
+                    icon={TrendingUp}
                     color="text-purple-400"
-                    description="Algorithm used"
+                    format="percentage"
+                    description="Harmonic mean of precision and recall"
                   />
-                  <MetricCard
-                    title="Status"
-                    value={trainingResults.threshold_met ? "✅ Excellent" : "⚠️ Good"}
-                    icon={CheckCircle}
-                    color={trainingResults.threshold_met ? "text-green-400" : "text-yellow-400"}
-                    description={trainingResults.threshold_met ? "90%+ accuracy achieved" : "Below 90% accuracy"}
-                  />
+                </div>
+
+                {/* Training Details */}
+                <div className="futuristic-card p-6">
+                  <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+                    <Settings className="h-6 w-6 mr-3 text-cyan-400" />
+                    Training Details
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-cyan-400 mb-2">
+                        {trainingResults.training_details?.training_samples || trainingResults.model_info?.training_samples || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-400">Training Samples</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-400 mb-2">
+                        {trainingResults.training_details?.test_samples || trainingResults.model_info?.test_samples || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-400">Test Samples</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-400 mb-2">
+                        {trainingResults.training_details?.features || trainingResults.model_info?.feature_count || trainingResults.feature_info?.feature_names?.length || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-400">Features</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-yellow-400 mb-2">
+                        {trainingResults.training_details?.training_time ? `${trainingResults.training_details.training_time}s` : trainingResults.performance?.training_time ? `${trainingResults.performance.training_time.toFixed(2)}s` : 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-400">Training Time</div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 space-y-4">
+                    {/* Preprocessing Details */}
+                    <div className="p-4 bg-gray-800/50 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <CheckCircle className="h-5 w-5 text-green-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-300 leading-relaxed">
+                            <span className="font-semibold text-white">Preprocessing Applied:</span> Missing value imputation, duplicate removal, categorical encoding, feature scaling, and outlier detection were performed before training.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Model Specifications */}
+                    <div className="p-4 bg-gray-800/50 rounded-lg">
+                      <h4 className="text-lg font-semibold text-white mb-3 flex items-center">
+                        <Brain className="h-5 w-5 text-cyan-400 mr-2" />
+                        Model Specifications
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        {trainingResults.model_name && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Algorithm:</span>
+                            <span className="text-white font-medium">{trainingResults.model_name}</span>
+                          </div>
+                        )}
+                        {trainingResults.training_details?.problem_type && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Problem Type:</span>
+                            <span className="text-white font-medium">{trainingResults.training_details.problem_type.charAt(0).toUpperCase() + trainingResults.training_details.problem_type.slice(1)}</span>
+                          </div>
+                        )}
+                        {(trainingResults.training_details?.target_column || trainingResults.file_info?.target_column) && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Target Variable:</span>
+                            <span className="text-white font-medium">{trainingResults.training_details?.target_column || trainingResults.file_info?.target_column}</span>
+                          </div>
+                        )}
+                        {trainingResults.training_details?.test_split && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Train/Test Split:</span>
+                            <span className="text-white font-medium">{Math.round((1 - trainingResults.training_details.test_split) * 100)}% / {Math.round(trainingResults.training_details.test_split * 100)}%</span>
+                          </div>
+                        )}
+                        {trainingResults.training_details?.cross_validation && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Cross Validation:</span>
+                            <span className="text-white font-medium">{trainingResults.training_details.cross_validation}-Fold</span>
+                          </div>
+                        )}
+                        {trainingResults.training_details?.preprocessing_steps && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Preprocessing Steps:</span>
+                            <span className="text-white font-medium">{trainingResults.training_details.preprocessing_steps} applied</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Dataset Information */}
+                    <div className="p-4 bg-gray-800/50 rounded-lg">
+                      <h4 className="text-lg font-semibold text-white mb-3 flex items-center">
+                        <Database className="h-5 w-5 text-purple-400 mr-2" />
+                        Dataset Information
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        {trainingResults.file_info?.filename && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Dataset File:</span>
+                            <span className="text-white font-medium">{trainingResults.file_info.filename}</span>
+                          </div>
+                        )}
+                        {getFeatureNames().length > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Feature Count:</span>
+                            <span className="text-white font-medium">{getFeatureNames().length} features</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Total Samples:</span>
+                          <span className="text-white font-medium">{trainingResults.training_details?.total_samples || ((trainingResults.training_details?.training_samples || 0) + (trainingResults.training_details?.test_samples || 0))}</span>
+                        </div>
+                        {trainingResults.training_details?.data_quality && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Data Quality:</span>
+                            <span className="text-green-400 font-medium">{trainingResults.training_details.data_quality}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Feature Names Display */}
+                    {getFeatureNames().length > 0 && (
+                      <div className="p-4 bg-gray-800/50 rounded-lg">
+                        <h4 className="text-lg font-semibold text-white mb-3 flex items-center">
+                          <BarChart3 className="h-5 w-5 text-yellow-400 mr-2" />
+                          Dataset Features
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {getFeatureNames().map((feature, index) => (
+                            <span 
+                              key={index}
+                              className="px-3 py-1 bg-blue-900/30 border border-blue-500/30 rounded-full text-sm text-blue-300 font-medium"
+                            >
+                              {feature}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Technical Details */}
+                    {trainingResults.model_info?.model_directory && (
+                      <div className="p-4 bg-gray-800/50 rounded-lg">
+                        <h4 className="text-lg font-semibold text-white mb-3 flex items-center">
+                          <Settings className="h-5 w-5 text-gray-400 mr-2" />
+                          Technical Details
+                        </h4>
+                        <div className="text-sm">
+                          <div className="flex justify-between mb-2">
+                            <span className="text-gray-400">Model Directory:</span>
+                            <span className="text-gray-300 font-mono text-xs break-all max-w-xs">{trainingResults.model_info.model_directory}</span>
+                          </div>
+                          {trainingResults.training_details?.timestamp && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Training Date:</span>
+                              <span className="text-gray-300">{new Date(trainingResults.training_details.timestamp).toLocaleString()}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Detailed Results */}

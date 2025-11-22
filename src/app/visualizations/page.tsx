@@ -46,6 +46,7 @@ interface VisualizationAnalysis {
 
 interface VisualizationParams {
   column?: string;
+  columns?: string[];
   x_column?: string;
   y_column?: string;
   z_column?: string;
@@ -86,8 +87,8 @@ function VisualizationControlPanel({ analysis, onCreateVisualization, isLoading 
 
     const inputs = [];
 
-    // Common parameters based on visualization type
-    if (['histogram', 'bar_chart', 'pie_chart', 'density_plot'].includes(selectedType)) {
+    // Single categorical column visualizations
+    if (['histogram', 'bar_chart', 'pie_chart', 'density_plot', 'count_plot', 'donut_chart'].includes(selectedType)) {
       inputs.push(
         <div key="column" className="mb-4">
           <label className="block text-sm font-medium text-gray-300 mb-2">Column</label>
@@ -97,7 +98,7 @@ function VisualizationControlPanel({ analysis, onCreateVisualization, isLoading 
             className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
           >
             <option value="">Select Column</option>
-            {selectedType === 'bar_chart' || selectedType === 'pie_chart' 
+            {['bar_chart', 'pie_chart', 'count_plot', 'donut_chart'].includes(selectedType)
               ? analysis.categorical_columns.map(col => (
                   <option key={col} value={col}>{col}</option>
                 ))
@@ -126,7 +127,27 @@ function VisualizationControlPanel({ analysis, onCreateVisualization, isLoading 
       }
     }
 
-    if (['scatter_plot', 'line_chart'].includes(selectedType)) {
+    // Single continuous column visualizations
+    if (['rug_plot', 'kde_plot', 'qq_plot'].includes(selectedType)) {
+      inputs.push(
+        <div key="column" className="mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">Column</label>
+          <select
+            value={params.column || ''}
+            onChange={(e) => setParams({...params, column: e.target.value})}
+            className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
+          >
+            <option value="">Select Column</option>
+            {analysis.continuous_columns.map(col => (
+              <option key={col} value={col}>{col}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    // Two variable visualizations
+    if (['scatter_plot', 'line_chart', 'line_plot', 'hexbin_plot', 'density_2d', 'joint_plot', 'bar_plot', 'bubble_chart'].includes(selectedType)) {
       inputs.push(
         <div key="x_column" className="mb-4">
           <label className="block text-sm font-medium text-gray-300 mb-2">X Column</label>
@@ -136,7 +157,7 @@ function VisualizationControlPanel({ analysis, onCreateVisualization, isLoading 
             className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
           >
             <option value="">Select X Column</option>
-            {analysis.continuous_columns.map(col => (
+            {(['bar_plot'].includes(selectedType) ? analysis.categorical_columns : analysis.continuous_columns).map(col => (
               <option key={col} value={col}>{col}</option>
             ))}
           </select>
@@ -159,24 +180,28 @@ function VisualizationControlPanel({ analysis, onCreateVisualization, isLoading 
         </div>
       );
 
-      inputs.push(
-        <div key="color_column" className="mb-4">
-          <label className="block text-sm font-medium text-gray-300 mb-2">Color By (Optional)</label>
-          <select
-            value={params.color_column || ''}
-            onChange={(e) => setParams({...params, color_column: e.target.value})}
-            className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
-          >
-            <option value="">No Color Grouping</option>
-            {analysis.categorical_columns.map(col => (
-              <option key={col} value={col}>{col}</option>
-            ))}
-          </select>
-        </div>
-      );
+      // Optional color grouping for applicable visualization types
+      if (['scatter_plot', 'line_chart', 'line_plot', 'bubble_chart'].includes(selectedType)) {
+        inputs.push(
+          <div key="color_column" className="mb-4">
+            <label className="block text-sm font-medium text-gray-300 mb-2">Color By (Optional)</label>
+            <select
+              value={params.color_column || ''}
+              onChange={(e) => setParams({...params, color_column: e.target.value})}
+              className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
+            >
+              <option value="">No Color Grouping</option>
+              {analysis.categorical_columns.map(col => (
+                <option key={col} value={col}>{col}</option>
+              ))}
+            </select>
+          </div>
+        );
+      }
     }
 
-    if (['box_plot', 'violin_plot'].includes(selectedType)) {
+    // Categorical vs Continuous visualizations
+    if (['box_plot', 'violin_plot', 'strip_plot', 'swarm_plot'].includes(selectedType)) {
       inputs.push(
         <div key="y_column" className="mb-4">
           <label className="block text-sm font-medium text-gray-300 mb-2">Value Column</label>
@@ -210,7 +235,104 @@ function VisualizationControlPanel({ analysis, onCreateVisualization, isLoading 
       );
     }
 
-    if (['heatmap_crosstab'].includes(selectedType)) {
+    // Bar chart variations
+    if (['stacked_bar', 'side_by_side_bar'].includes(selectedType)) {
+      inputs.push(
+        <div key="x_column" className="mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">Category Column</label>
+          <select
+            value={params.x_column || ''}
+            onChange={(e) => setParams({...params, x_column: e.target.value})}
+            className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
+          >
+            <option value="">Select Column</option>
+            {analysis.categorical_columns.map(col => (
+              <option key={col} value={col}>{col}</option>
+            ))}
+          </select>
+        </div>
+      );
+
+      inputs.push(
+        <div key="y_column" className="mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">Value Column</label>
+          <select
+            value={params.y_column || ''}
+            onChange={(e) => setParams({...params, y_column: e.target.value})}
+            className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
+          >
+            <option value="">Select Column</option>
+            {analysis.continuous_columns.map(col => (
+              <option key={col} value={col}>{col}</option>
+            ))}
+          </select>
+        </div>
+      );
+
+      inputs.push(
+        <div key="color_column" className="mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">Group By Column</label>
+          <select
+            value={params.color_column || ''}
+            onChange={(e) => setParams({...params, color_column: e.target.value})}
+            className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
+          >
+            <option value="">Select Column</option>
+            {analysis.categorical_columns.map(col => (
+              <option key={col} value={col}>{col}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    // Multivariate visualizations
+    if (['parallel_coordinates', 'andrew_curves', 'cluster_plot'].includes(selectedType)) {
+      inputs.push(
+        <div key="columns" className="mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">Columns (Select Multiple)</label>
+          <div className="max-h-32 overflow-y-auto bg-gray-800 border border-gray-600 rounded-lg p-2">
+            {analysis.continuous_columns.map(col => (
+              <label key={col} className="flex items-center p-1">
+                <input
+                  type="checkbox"
+                  checked={(params.columns as string[] || []).includes(col)}
+                  onChange={(e) => {
+                    const currentCols = params.columns as string[] || [];
+                    const newCols = e.target.checked 
+                      ? [...currentCols, col]
+                      : currentCols.filter(c => c !== col);
+                    setParams({...params, columns: newCols});
+                  }}
+                  className="mr-2"
+                />
+                <span className="text-white text-sm">{col}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      );
+
+      if (['cluster_plot'].includes(selectedType)) {
+        inputs.push(
+          <div key="color_column" className="mb-4">
+            <label className="block text-sm font-medium text-gray-300 mb-2">Color By (Optional)</label>
+            <select
+              value={params.color_column || ''}
+              onChange={(e) => setParams({...params, color_column: e.target.value})}
+              className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
+            >
+              <option value="">No Color Grouping</option>
+              {analysis.categorical_columns.map(col => (
+                <option key={col} value={col}>{col}</option>
+              ))}
+            </select>
+          </div>
+        );
+      }
+    }
+
+    if (['heatmap_crosstab', 'crosstab_heatmap'].includes(selectedType)) {
       inputs.push(
         <div key="x_column" className="mb-4">
           <label className="block text-sm font-medium text-gray-300 mb-2">X Column</label>
