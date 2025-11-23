@@ -316,7 +316,8 @@ export const api = {
     isLabeled: string,
     dataType: string,
     targetColumn?: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    selectedTrainingColumns?: string[]
   ): Promise<UploadResponse> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
@@ -331,6 +332,11 @@ export const api = {
       
       if (targetColumn) {
         formData.append('target_column', targetColumn);
+      }
+
+      // Include selected training columns
+      if (selectedTrainingColumns && selectedTrainingColumns.length > 0) {
+        formData.append('selected_columns', JSON.stringify(selectedTrainingColumns));
       }
 
       const xhr = new XMLHttpRequest();

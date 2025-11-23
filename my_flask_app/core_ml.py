@@ -501,7 +501,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'raw_response': ''
             }
     
-    def train_recommended_model(self, file_path: str, recommendations: Dict[str, Any], user_data: Dict[str, Any]) -> Dict[str, Any]:
+    def train_recommended_model(self, file_path: str, recommendations: Dict[str, Any], user_data: Dict[str, Any], selected_columns: List[str] = None) -> Dict[str, Any]:
         """
         Train the recommended model based on AI recommendations
         
@@ -530,7 +530,27 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             # Determine target variable (assume last column is target)
             target_column = df.columns[-1]
-            X = df.drop(columns=[target_column])
+            
+            # Apply column filtering if selected_columns is provided
+            if selected_columns:
+                print(f"\n🎯 APPLYING COLUMN FILTERING")
+                print(f"📊 User selected {len(selected_columns)} columns for training")
+                print(f"📊 Selected columns: {selected_columns}")
+                
+                # Filter out target column from selected columns if present
+                feature_columns = [col for col in selected_columns if col != target_column]
+                
+                # Validate that all selected columns exist
+                missing_columns = [col for col in feature_columns if col not in df.columns]
+                if missing_columns:
+                    raise ValueError(f"Selected columns not found in dataset: {missing_columns}")
+                
+                X = df[feature_columns]
+                print(f"✅ Filtered dataset to {len(X.columns)} selected feature columns")
+                print(f"📊 Excluded {len(df.columns) - len(selected_columns)} columns from training")
+            else:
+                X = df.drop(columns=[target_column])
+            
             y = df[target_column]
             
             print(f"≡ƒÄ» Target Variable: {target_column}")
@@ -606,8 +626,17 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'model_path': model_path,
                 'feature_names': list(X.columns),
                 'target_column': target_column,
+                'selected_columns': selected_columns if selected_columns else [],
+                'original_columns': list(df_original.columns),
                 'training_samples': len(X_train),
-                'test_samples': len(X_test)
+                'test_samples': len(X_test),
+                'feature_info': {
+                    'feature_names': list(X.columns),
+                    'target_column': target_column,
+                    'selected_columns': selected_columns if selected_columns else [],
+                    'original_columns': list(df_original.columns),
+                    'excluded_columns': [col for col in df_original.columns if col not in (selected_columns or df_original.columns)]
+                }
             }
             
         except Exception as e:
@@ -617,7 +646,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'error': str(e)
             }
     
-    def train_specific_model(self, file_path: str, model_name: str, user_data: Dict[str, Any], target_column: str = None) -> Dict[str, Any]:
+    def train_specific_model(self, file_path: str, model_name: str, user_data: Dict[str, Any], target_column: str = None, selected_columns: List[str] = None) -> Dict[str, Any]:
         """
         Train a specific model selected by the user with comprehensive preprocessing and detailed logging
         
@@ -626,6 +655,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             model_name (str): Specific model name to train
             user_data (dict): User-provided data about the problem
             target_column (str): Target column name (optional)
+            selected_columns (List[str]): List of columns to use for training (optional, uses all if None)
             
         Returns:
             dict: Training results with model performance
@@ -649,19 +679,43 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # STEP 1: LOAD DATASET
             # ============================================================================
             print(f"\n{'='*80}")
-            print("≡ƒôé STEP 1: LOADING DATASET")
+            print("🔄 STEP 1: LOADING DATASET")
             print(f"{'='*80}")
             
             start_time = time.time()
-            df = pd.read_csv(file_path)
+            df_original = pd.read_csv(file_path)
             load_time = time.time() - start_time
             
-            print(f"Γ£à Dataset loaded successfully in {load_time:.2f} seconds")
-            print(f"≡ƒôè Total rows: {df.shape[0]}")
-            print(f"≡ƒôè Total columns: {df.shape[1]}")
-            print(f"≡ƒôè Memory usage: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
-            print(f"≡ƒôï Column names: {list(df.columns)}")
-            print(f"\n≡ƒôè Data types:")
+            print(f"✅ Original dataset loaded successfully in {load_time:.2f} seconds")
+            print(f"🔢 Original rows: {df_original.shape[0]}")
+            print(f"🔢 Original columns: {df_original.shape[1]}")
+            print(f"🔢 Memory usage: {df_original.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+            print(f"🔤 Original column names: {list(df_original.columns)}")
+            
+            # Apply column filtering FIRST if selected_columns is provided
+            if selected_columns:
+                print(f"\n🎯 APPLYING COLUMN FILTERING")
+                print(f"📊 User selected {len(selected_columns)} columns for training")
+                print(f"📊 Selected columns: {selected_columns}")
+                
+                # Validate that all selected columns exist in the dataset
+                missing_columns = [col for col in selected_columns if col not in df_original.columns]
+                if missing_columns:
+                    raise ValueError(f"Selected columns not found in dataset: {missing_columns}")
+                
+                # Filter the entire dataframe to only include selected columns
+                df = df_original[selected_columns]
+                excluded_columns = [col for col in df_original.columns if col not in selected_columns]
+                
+                print(f"✅ Filtered dataset from {len(df_original.columns)} to {len(df.columns)} columns")
+                print(f"📊 Training will use: {list(df.columns)}")
+                print(f"🚫 Excluded from training: {excluded_columns}")
+            else:
+                df = df_original
+                print(f"📊 No column filtering - using all {len(df.columns)} columns")
+            
+            print(f"🔢 Final dataset shape: {df.shape} (rows: {df.shape[0]}, columns: {df.shape[1]})")
+            print(f"\n🔢 Final data types:")
             for col, dtype in df.dtypes.items():
                 print(f"   - {col}: {dtype}")
             
@@ -716,26 +770,41 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 print(f"≡ƒÄ» Unlabeled data detected - using columns as features (clustering)")
                 X = df.copy()
                 
-                # Exclude unique identifier columns (ID, customerid, etc.)
-                id_patterns = ['id', 'customerid', 'userid', 'user_id', 'customer_id', 'index', 'idx']
-                columns_to_exclude = []
-                for col in X.columns:
-                    col_lower = col.lower().strip()
-                    # Check if column name matches ID patterns
-                    if any(pattern in col_lower for pattern in id_patterns):
-                        # Also check if it's a unique identifier (all values are unique or nearly unique)
-                        unique_ratio = X[col].nunique() / len(X)
-                        if unique_ratio > 0.95:  # More than 95% unique values
-                            columns_to_exclude.append(col)
-                            print(f"   ⚠️ Excluding unique identifier column: {col} ({unique_ratio*100:.1f}% unique values)")
-                
-                if columns_to_exclude:
-                    X = X.drop(columns=columns_to_exclude)
-                    print(f"   ✅ Excluded {len(columns_to_exclude)} unique identifier column(s)")
+                # Apply column filtering if selected_columns is provided
+                if selected_columns:
+                    print(f"\n🎯 APPLYING COLUMN FILTERING FOR CLUSTERING")
+                    print(f"📊 User selected {len(selected_columns)} columns for clustering")
+                    print(f"📊 Selected columns: {selected_columns}")
+                    
+                    # Validate that all selected columns exist
+                    missing_columns = [col for col in selected_columns if col not in X.columns]
+                    if missing_columns:
+                        raise ValueError(f"Selected columns not found in dataset: {missing_columns}")
+                    
+                    # Filter X to only include selected columns
+                    X = X[selected_columns]
+                    print(f"✅ Filtered dataset to {len(X.columns)} selected columns for clustering")
+                else:
+                    # Exclude unique identifier columns (ID, customerid, etc.)
+                    id_patterns = ['id', 'customerid', 'userid', 'user_id', 'customer_id', 'index', 'idx']
+                    columns_to_exclude = []
+                    for col in X.columns:
+                        col_lower = col.lower().strip()
+                        # Check if column name matches ID patterns
+                        if any(pattern in col_lower for pattern in id_patterns):
+                            # Also check if it's a unique identifier (all values are unique or nearly unique)
+                            unique_ratio = X[col].nunique() / len(X)
+                            if unique_ratio > 0.95:  # More than 95% unique values
+                                columns_to_exclude.append(col)
+                                print(f"   ⚠️ Excluding unique identifier column: {col} ({unique_ratio*100:.1f}% unique values)")
+                    
+                    if columns_to_exclude:
+                        X = X.drop(columns=columns_to_exclude)
+                        print(f"   ✅ Excluded {len(columns_to_exclude)} unique identifier column(s)")
                 
                 y = None
                 target_column = None
-                print(f"\n≡ƒôè Feature columns ({len(X.columns)}):")
+                print(f"\n🔍 Feature columns ({len(X.columns)}):")
                 for i, col in enumerate(X.columns, 1):
                     print(f"   {i}. {col} ({X[col].dtype})")
             else:
@@ -758,7 +827,11 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 X = df.drop(columns=[target_column])
                 y = df[target_column]
                 
-                print(f"\n≡ƒôè Feature columns ({len(X.columns)}):")
+                # Column filtering was already applied at the beginning of this function
+                # X already contains only the selected columns (minus target)
+                print(f"📊 Using pre-filtered feature columns: {list(X.columns)}")
+                
+                print(f"\n🔍 Feature columns ({len(X.columns)}):")
                 for i, col in enumerate(X.columns, 1):
                     print(f"   {i}. {col} ({X[col].dtype})")
             
@@ -848,13 +921,22 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             if y is not None:
                 is_labeled = user_data.get('is_labeled', 'labeled') in ['labeled', 'true', True]
                 data_type = user_data.get('data_type', '')
-                is_classification = (data_type in ['categorical', 'classification'] or y.nunique() < 20)
+                
+                # Respect user's explicit choice for data type
+                if data_type == 'continuous':
+                    is_classification = False  # Force regression for continuous data
+                elif data_type in ['categorical', 'classification']:
+                    is_classification = True   # Force classification for categorical data
+                else:
+                    # Auto-detect only if no explicit choice
+                    is_classification = y.nunique() < 20
                 
                 print(f"≡ƒöì Training mode detection:")
                 print(f"   - is_labeled: {is_labeled} (value: {user_data.get('is_labeled')})")
                 print(f"   - data_type: {data_type}")
                 print(f"   - is_classification: {is_classification}")
                 print(f"   - target unique values: {y.nunique()}")
+                print(f"   - mode: {'Classification (respecting user choice)' if data_type in ['categorical', 'classification'] else 'Regression (respecting user choice)' if data_type == 'continuous' else 'Auto-detected'}")
                 
                 if is_classification and y.dtype == 'object':
                     print(f"≡ƒöä Encoding target variable (classification)")
@@ -983,7 +1065,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 # Store feature names before training (after ID exclusion)
                 feature_names = list(X.columns)
                 print(f"📊 Feature names to be used: {feature_names}")
-                result = self._train_unsupervised_model(X, model_name, model_dir)
+                result = self._train_unsupervised_model(X, model_name, model_dir, selected_columns, df_original)
                 return result
             else:
                 print(f"≡ƒÜÇ SWITCHING TO REALISTIC COMPREHENSIVE TRAINING")
@@ -999,7 +1081,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     model_name=mapped_model_name,
                     original_name=model_name,
                     file_path=file_path,
-                    target_column=target_column
+                    target_column=target_column,
+                    selected_columns=selected_columns
                 )
                 
                 if realistic_result['success']:
@@ -1129,6 +1212,9 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'training_samples': int(X_train.shape[0]),
                 'test_samples': int(X_test.shape[0]),
                 'num_features': int(X_train.shape[1]),
+                'feature_names': list(X.columns),  # Add filtered feature names
+                'target_column': target_column,     # Add target column
+                'selected_columns': selected_columns if selected_columns else list(df_original.columns),  # Store original selection
                 'performance': performance,
                 'preprocessing': {
                     'scaler_used': scaler is not None,
@@ -1156,12 +1242,21 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             print(f"{'='*100}\n")
             
             # Calculate detailed metrics for UI display
-            ui_metrics = {
-                'accuracy': performance.get('accuracy', performance.get('r2_score', 0)),
-                'precision': performance.get('precision', 0),
-                'recall': performance.get('recall', 0),
-                'f1_score': performance.get('f1_score', 0)
-            }
+            # Prepare UI-friendly metrics based on model type
+            if is_classification:
+                ui_metrics = {
+                    'accuracy': performance.get('accuracy', 0),
+                    'precision': performance.get('precision', 0),
+                    'recall': performance.get('recall', 0),
+                    'f1_score': performance.get('f1_score', 0)
+                }
+            else:  # Regression
+                ui_metrics = {
+                    'r2_score': performance.get('r2_score', 0),
+                    'mse': performance.get('mse', 0),
+                    'rmse': performance.get('rmse', 0),
+                    'mae': performance.get('mae', 0)
+                }
             
             training_details = {
                 'training_samples': int(X_train.shape[0]),
@@ -1177,7 +1272,12 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'feature_info': {
                     'feature_names': list(X.columns),
                     'target_column': target_column,
-                    'problem_type': 'classification' if is_classification else 'regression'
+                    'problem_type': 'classification' if is_classification else 'regression',
+                    'selected_columns': selected_columns if selected_columns else [],
+                    'original_columns': list(df_original.columns),
+                    'excluded_columns': [col for col in df_original.columns if col not in (selected_columns or df_original.columns)],
+                    'numeric_cols': numeric_cols,      # Add actual numeric columns from data
+                    'categorical_cols': categorical_cols  # Add actual categorical columns from data
                 },  # Feature information for frontend
                 'model_info': {
                     'name': model_name,
@@ -1248,7 +1348,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 # Default to Random Forest for regression
                 return RandomForestRegressor(n_estimators=100, random_state=42)
     
-    def _train_unsupervised_model(self, X: pd.DataFrame, model_name: str, model_dir: str) -> Dict[str, Any]:
+    def _train_unsupervised_model(self, X: pd.DataFrame, model_name: str, model_dir: str, selected_columns: List[str] = None, df_original: pd.DataFrame = None) -> Dict[str, Any]:
         """
         Train an unsupervised learning model with detailed logging
         
@@ -1256,6 +1356,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             X (DataFrame): Feature dataset (already preprocessed, IDs excluded)
             model_name (str): Name of the unsupervised model
             model_dir (str): Directory to save the model
+            selected_columns (List[str]): Originally selected columns by user
+            df_original (DataFrame): Original dataframe before filtering
             
         Returns:
             dict: Training results with feature_names included
@@ -1463,7 +1565,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'numeric_cols': preprocessing_transformers.get('numeric_cols', []),
                 'categorical_cols': preprocessing_transformers.get('categorical_cols', []),
                 'target_column': None,
-                'problem_type': 'unsupervised'
+                'problem_type': 'unsupervised',
+                'selected_columns': selected_columns if selected_columns else feature_names
             }
             feature_info_path = os.path.join(model_dir, f"feature_info_{timestamp}.json")
             with open(feature_info_path, 'w') as f:
@@ -1486,6 +1589,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'performance': performance,
                 'feature_names': feature_names,  # Include feature names for prediction
                 'target_column': None,  # No target for unsupervised
+                'selected_columns': selected_columns if selected_columns else feature_names,  # Store user selection or actual features used
                 'numeric_cols': preprocessing_transformers.get('numeric_cols', []),
                 'categorical_cols': preprocessing_transformers.get('categorical_cols', []),
                 'preprocessing_artifacts': {
@@ -2327,7 +2431,7 @@ print("\\nΓ£à Clustering analysis completed!")
         print(f"ΓÜá∩╕Å  No mapping found for model '{recommendation_model_name}', using original name")
         return recommendation_model_name
 
-    def _execute_pipeline_training(self, model_name: str, original_name: str, file_path: str, target_column: str = None) -> Dict[str, Any]:
+    def _execute_pipeline_training(self, model_name: str, original_name: str, file_path: str, target_column: str = None, selected_columns: List[str] = None) -> Dict[str, Any]:
         """
         Execute comprehensive model-specific training with realistic timing and high accuracy
         
@@ -2417,6 +2521,27 @@ print("\\nΓ£à Clustering analysis completed!")
             # Separate features and target
             y = df[target_column]
             X = df.drop(columns=[target_column])
+            
+            # Apply column filtering if selected_columns is provided
+            if selected_columns:
+                print(f"\n🎯 APPLYING COLUMN FILTERING FOR SUPERVISED LEARNING")
+                print(f"📊 User selected {len(selected_columns)} columns for training")
+                print(f"📊 Selected columns: {selected_columns}")
+                
+                # Filter to only selected columns (excluding target which is already separated)
+                available_features = list(X.columns)
+                selected_features = [col for col in selected_columns if col in available_features and col != target_column]
+                
+                if selected_features:
+                    X = X[selected_features]
+                    print(f"✅ Filtered dataset from {len(available_features)} to {len(selected_features)} features")
+                    print(f"📊 Training will use: {list(X.columns)}")
+                    print(f"🚫 Excluded from training: {[col for col in available_features if col not in selected_features]}")
+                else:
+                    print(f"⚠️ Warning: No valid features found in selected columns, using all features")
+                    selected_columns = available_features  # Update selected_columns for metadata
+            
+            print(f"🔢 Final feature dataset shape: ({X.shape[0]} rows, {X.shape[1]} columns)")
             
             # Store original feature names for later use
             original_feature_names = list(X.columns)
@@ -2652,8 +2777,9 @@ print("\\nΓ£à Clustering analysis completed!")
                 'n_features': X.shape[1],
                 'n_train_samples': len(X_train),
                 'n_test_samples': len(X_test),
-                'feature_names': original_feature_names,  # Use original feature names
+                'feature_names': original_feature_names,  # Use original feature names (filtered)
                 'target_column': target_column,
+                'selected_columns': selected_columns if selected_columns else original_feature_names,  # Store user selection
                 'preprocessing_steps': len(preprocessor_steps)
             }
             
@@ -2686,13 +2812,12 @@ print("\\nΓ£à Clustering analysis completed!")
                     'recall': performance_metrics.get('recall', 0),
                     'f1_score': performance_metrics.get('f1_score', 0)
                 }
-            else:
-                # For regression, use R2 score as accuracy and set others to 0
+            else:  # Regression
                 ui_metrics = {
-                    'accuracy': performance_metrics.get('r2_score', 0),
-                    'precision': performance_metrics.get('r2_score', 0),  # Use R2 for consistency
-                    'recall': performance_metrics.get('r2_score', 0),     # Use R2 for consistency
-                    'f1_score': performance_metrics.get('r2_score', 0)    # Use R2 for consistency
+                    'r2_score': performance_metrics.get('r2_score', 0),
+                    'mse': performance_metrics.get('mse', 0),
+                    'rmse': performance_metrics.get('rmse', 0),
+                    'mae': performance_metrics.get('mae', 0)
                 }
             
             training_details = {
@@ -2729,7 +2854,9 @@ print("\\nΓ£à Clustering analysis completed!")
                     'problem_type': scenario,
                     'original_feature_names': original_feature_names,  # Preserve original names
                     'feature_count': X.shape[1],
-                    'dataset_shape': X.shape
+                    'dataset_shape': X.shape,
+                    'numeric_cols': numeric_features,      # Add actual numeric columns from data  
+                    'categorical_cols': categorical_features  # Add actual categorical columns from data
                 },  # Feature information for frontend
                 'model_info': {
                     'model_directory': model_folder,
@@ -2856,6 +2983,9 @@ print("\\nΓ£à Clustering analysis completed!")
                 'best_params': grid_search.best_params_,
                 'n_samples': len(X),
                 'n_features': X.shape[1],
+                'feature_names': original_feature_names,  # Add feature names (filtered)
+                'target_column': target_column,  # Add target column
+                'selected_columns': selected_columns if selected_columns else original_feature_names,  # Store user selection
                 'score_name': 'accuracy' if scenario == 'classification' else 'r2_score'
             }
             
