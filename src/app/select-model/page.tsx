@@ -23,8 +23,8 @@ interface ModelCardProps {
 function ModelCard({ name, description, accuracy, isRecommended, onSelect, isSelected, index }: ModelCardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 50, rotateX: -15 }}
-      animate={{ opacity: 1, y: 0, rotateX: 0 }}
+      initial={{ opacity: 0, y: 50 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ 
         duration: 0.6, 
         delay: index * 0.1,
@@ -32,7 +32,6 @@ function ModelCard({ name, description, accuracy, isRecommended, onSelect, isSel
       }}
       whileHover={{ 
         y: -10,
-        rotateX: 5,
         scale: 1.02,
         transition: { duration: 0.3 }
       }}
@@ -356,13 +355,9 @@ export default function SelectModelPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6 }}
         >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="mx-auto mb-8"
-          >
-            <div className="w-20 h-20 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full" />
-          </motion.div>
+          <div className="flex justify-center mb-8">
+            <div className="w-20 h-20 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+          </div>
           
           <motion.h2 
             className="text-3xl font-bold text-white mb-4"
@@ -479,8 +474,8 @@ export default function SelectModelPage() {
           >
             <motion.div 
               className="flex justify-center mb-8"
-              animate={{ rotateY: 360 }}
-              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
             >
               <Target className="h-16 w-16 text-cyan-400" style={{ filter: 'drop-shadow(0 0 20px rgba(0, 245, 255, 0.5))' }} />
             </motion.div>
@@ -629,13 +624,7 @@ export default function SelectModelPage() {
             >
               {isTraining ? (
                 <span className="flex items-center justify-center">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="mr-2"
-                  >
-                    <Loader2 className="h-5 w-5" />
-                  </motion.div>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                   Training Model...
                 </span>
               ) : (

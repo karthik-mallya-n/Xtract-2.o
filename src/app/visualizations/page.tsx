@@ -688,13 +688,14 @@ export default function VisualizationPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6 }}
         >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="mx-auto mb-8"
-          >
-            <div className="w-20 h-20 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full" />
-          </motion.div>
+          <div className="flex justify-center mb-8">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            >
+              <div className="w-20 h-20 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full" />
+            </motion.div>
+          </div>
           
           <motion.h2 
             className="text-3xl font-bold text-white mb-4"
@@ -775,7 +776,7 @@ export default function VisualizationPage() {
           >
             <motion.div 
               className="flex justify-center mb-8"
-              animate={{ rotateY: 360 }}
+              animate={{ rotate: 360 }}
               transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
             >
               <BarChart3 className="h-16 w-16 text-cyan-400" style={{ filter: 'drop-shadow(0 0 20px rgba(0, 245, 255, 0.5))' }} />
@@ -866,13 +867,14 @@ export default function VisualizationPage() {
                 {isCreatingVisualization ? (
                   <div className="flex items-center justify-center h-96">
                     <div className="text-center">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="mx-auto mb-4"
-                      >
-                        <Loader2 className="h-12 w-12 text-cyan-400" />
-                      </motion.div>
+                      <div className="flex justify-center mb-4">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        >
+                          <Loader2 className="h-12 w-12 text-cyan-400" />
+                        </motion.div>
+                      </div>
                       <p className="text-gray-300">Creating visualization...</p>
                     </div>
                   </div>

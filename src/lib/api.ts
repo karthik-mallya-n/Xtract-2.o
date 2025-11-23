@@ -12,6 +12,7 @@ export interface UploadResponse {
   file_size?: number;
   message?: string;
   error?: string;
+  available_columns?: string[];
 }
 
 export interface ModelRecommendation {
@@ -293,19 +294,44 @@ export const apiClient = new APIClient();
 // Utility functions for common API operations
 export const api = {
   /**
+   * Check if backend is available
+   */
+  isBackendAvailable: async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000) // 3 second timeout
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
    * Upload file with progress tracking
    */
   uploadWithProgress: async (
     file: File,
     isLabeled: string,
     dataType: string,
+    targetColumn?: string,
     onProgress?: (progress: number) => void
   ): Promise<UploadResponse> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('is_labeled', isLabeled);
-      formData.append('data_type', dataType);
+      formData.append('is_labeled', isLabeled || '');
+      
+      // Only send data_type for labeled data
+      if (isLabeled === 'labeled') {
+        formData.append('data_type', dataType || '');
+      }
+      // For unlabeled data, don't send data_type at all
+      
+      if (targetColumn) {
+        formData.append('target_column', targetColumn);
+      }
 
       const xhr = new XMLHttpRequest();
 
@@ -328,7 +354,19 @@ export const api = {
             reject(new Error('Failed to parse response'));
           }
         } else {
-          reject(new Error(`HTTP error! status: ${xhr.status}`));
+          // Try to parse error message from response
+          let errorMessage = `HTTP error! status: ${xhr.status}`;
+          try {
+            const errorResponse = JSON.parse(xhr.responseText);
+            if (errorResponse.error) {
+              errorMessage = errorResponse.error;
+            } else if (errorResponse.message) {
+              errorMessage = errorResponse.message;
+            }
+          } catch {
+            // If parsing fails, use default message
+          }
+          reject(new Error(errorMessage));
         }
       });
 
@@ -339,48 +377,5 @@ export const api = {
       xhr.open('POST', `${API_BASE_URL}/api/upload`);
       xhr.send(formData);
     });
-  },
-
-  /**
-   * Poll training status until completion
-   */
-  pollTrainingStatus: async (
-    taskId: string,
-    onUpdate: (status: TrainingStatus) => void,
-    intervalMs: number = 2000
-  ): Promise<TrainingStatus> => {
-    return new Promise((resolve, reject) => {
-      const poll = async () => {
-        try {
-          const status = await apiClient.getTrainingStatus(taskId);
-          onUpdate(status);
-
-          if (status.is_complete) {
-            resolve(status);
-          } else {
-            setTimeout(poll, intervalMs);
-          }
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      poll();
-    });
-  },
-
-  /**
-   * Check if backend is available
-   */
-  isBackendAvailable: async (): Promise<boolean> => {
-    try {
-      await apiClient.healthCheck();
-      return true;
-    } catch (error) {
-      console.warn('Backend not available:', error);
-      return false;
-    }
-  },
+  }
 };
-
-export default apiClient;

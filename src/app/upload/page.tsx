@@ -64,12 +64,7 @@ function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
     >
       <div className="flex flex-col items-center">
         {isLoading ? (
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          >
-            <Loader2 className="h-16 w-16 text-cyan-400 mb-6" />
-          </motion.div>
+          <Loader2 className="h-16 w-16 text-cyan-400 mb-6 animate-spin" />
         ) : (
           <motion.div
             className="p-6 rounded-full mb-6"
@@ -141,6 +136,9 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string>('');
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
+  const [targetColumn, setTargetColumn] = useState<string>('');
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [columnsPreviewed, setColumnsPreviewed] = useState(false);
 
   // Check backend availability on component mount
   useEffect(() => {
@@ -155,14 +153,64 @@ export default function UploadPage() {
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
     setError('');
+    setAvailableColumns([]);
+    setTargetColumn('');
+    setColumnsPreviewed(false);
+    // Preview columns from backend after file select
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/preview-columns`, {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.columns)) {
+          setAvailableColumns(data.columns);
+          setColumnsPreviewed(true);
+        }
+      })
+      .catch(err => {
+        console.error('Error previewing columns:', err);
+        // Try to read columns from file directly as fallback
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target?.result as string;
+            const lines = text.split('\n');
+            if (lines.length > 0) {
+              const headers = lines[0].split(',').map(h => h.trim());
+              setAvailableColumns(headers);
+              setColumnsPreviewed(true);
+            }
+          } catch (err) {
+            console.error('Error parsing file:', err);
+          }
+        };
+        reader.readAsText(file);
+      });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedFile || !isLabeled || !dataType) {
+    if (!selectedFile || !isLabeled) {
       setError('Please fill in all fields');
       return;
+    }
+    if (isLabeled === 'labeled') {
+      if (!dataType) {
+        setError('Please select whether your data is continuous or categorical.');
+        return;
+      }
+      if (availableColumns.length > 0 && !targetColumn) {
+        setError('Please select the target column.');
+        return;
+      }
+    }
+    // For unlabeled data, clear dataType
+    if (isLabeled === 'unlabeled') {
+      setDataType('');
     }
 
     if (!backendAvailable) {
@@ -179,16 +227,18 @@ export default function UploadPage() {
         selectedFile,
         isLabeled,
         dataType,
+        targetColumn,
         (progress) => setUploadProgress(progress)
       );
 
       if (response.success && response.file_id) {
-        // Store file_id in localStorage for use in other pages
         localStorage.setItem('currentFileId', response.file_id);
         localStorage.setItem('currentFileName', response.filename || selectedFile.name);
-        
-        // Navigate to model selection page
         router.push('/select-model');
+      } else if (response.available_columns) {
+        // Backend requests target column selection
+        setAvailableColumns(response.available_columns);
+        setError(response.error || 'Please select the target column.');
       } else {
         setError(response.error || 'Upload failed');
       }
@@ -227,11 +277,9 @@ export default function UploadPage() {
               <motion.div
                 className="relative"
                 animate={{ 
-                  rotateY: 360,
                   scale: [1, 1.1, 1]
                 }}
                 transition={{ 
-                  rotateY: { duration: 8, repeat: Infinity, ease: "linear" },
                   scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
                 style={{
@@ -383,7 +431,7 @@ export default function UploadPage() {
 
             {/* Data Characteristics Section */}
             <motion.div 
-              className="grid md:grid-cols-2 gap-8"
+              className={`grid gap-8 ${isLabeled === 'labeled' ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.5 }}
@@ -411,7 +459,10 @@ export default function UploadPage() {
                       name="isLabeled"
                       value="unlabeled"
                       checked={isLabeled === 'unlabeled'}
-                      onChange={(e) => setIsLabeled(e.target.value)}
+                      onChange={(e) => {
+                        setIsLabeled(e.target.value);
+                        setDataType(''); // Clear data type when switching to unlabeled
+                      }}
                       className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
                     />
                     <span className="ml-4 text-lg text-white font-medium">Unlabeled</span>
@@ -419,37 +470,63 @@ export default function UploadPage() {
                 </div>
               </div>
 
-              {/* Data Type Question */}
-              <div className="futuristic-card">
-                <label className="block text-xl font-bold text-white mb-6">
-                  Is your data continuous or categorical?
-                </label>
-                <div className="space-y-4">
-                  <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
-                    <input
-                      type="radio"
-                      name="dataType"
-                      value="continuous"
-                      checked={dataType === 'continuous'}
-                      onChange={(e) => setDataType(e.target.value)}
-                      className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
-                    />
-                    <span className="ml-4 text-lg text-white font-medium">Continuous</span>
+              {/* Data Type Question - Only show for labeled data */}
+              {isLabeled === 'labeled' && (
+                <div className="futuristic-card">
+                  <label className="block text-xl font-bold text-white mb-6">
+                    Is your data continuous or categorical?
                   </label>
-                  <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
-                    <input
-                      type="radio"
-                      name="dataType"
-                      value="categorical"
-                      checked={dataType === 'categorical'}
-                      onChange={(e) => setDataType(e.target.value)}
-                      className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
-                    />
-                    <span className="ml-4 text-lg text-white font-medium">Categorical</span>
-                  </label>
+                  <div className="space-y-4">
+                    <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
+                      <input
+                        type="radio"
+                        name="dataType"
+                        value="continuous"
+                        checked={dataType === 'continuous'}
+                        onChange={(e) => setDataType(e.target.value)}
+                        className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
+                      />
+                      <span className="ml-4 text-lg text-white font-medium">Continuous</span>
+                    </label>
+                    <label className="flex items-center p-4 rounded-xl bg-gray-800/30 hover:bg-gray-700/30 transition-all duration-200 cursor-pointer border border-gray-600 hover:border-cyan-400/50">
+                      <input
+                        type="radio"
+                        name="dataType"
+                        value="categorical"
+                        checked={dataType === 'categorical'}
+                        onChange={(e) => setDataType(e.target.value)}
+                        className="h-5 w-5 text-cyan-400 focus:ring-cyan-400 focus:ring-2 bg-gray-700 border-gray-500"
+                      />
+                      <span className="ml-4 text-lg text-white font-medium">Categorical</span>
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
+
+            {/* Target Column Selection */}
+            {isLabeled === 'labeled' && availableColumns.length > 0 && (
+              <motion.div 
+                className="futuristic-card mt-8"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <label className="block text-xl font-bold text-white mb-4">
+                  Select Target Attribute
+                </label>
+                <select
+                  className="w-full px-4 py-3 rounded-lg bg-gray-800 text-white text-lg border border-cyan-400/30 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                  value={targetColumn}
+                  onChange={e => setTargetColumn(e.target.value)}
+                >
+                  <option value="">-- Select Target Column --</option>
+                  {availableColumns.map(col => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+              </motion.div>
+            )}
 
             {/* Submit Button */}
             <motion.div 
@@ -460,36 +537,31 @@ export default function UploadPage() {
             >
               <motion.button
                 type="submit"
-                disabled={!selectedFile || !isLabeled || !dataType || isLoading}
+                disabled={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)}
                 className={`px-12 py-5 text-xl font-bold rounded-xl transition-all duration-300 ${
-                  !selectedFile || !isLabeled || !dataType || isLoading
+                  !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)
                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed border border-gray-500'
                     : 'text-white border border-cyan-400/30'
                 }`}
                 style={{
-                  background: !selectedFile || !isLabeled || !dataType || isLoading 
+                  background: !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)
                     ? 'rgba(75, 85, 99, 0.5)' 
                     : 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
-                  boxShadow: !selectedFile || !isLabeled || !dataType || isLoading
+                  boxShadow: !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)
                     ? 'none'
                     : '0 8px 32px rgba(0, 245, 255, 0.3)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.8px'
                 }}
-                whileHover={!selectedFile || !isLabeled || !dataType || isLoading ? {} : { 
+                whileHover={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) ? {} : { 
                   scale: 1.05,
                   boxShadow: '0 0 30px rgba(0, 245, 255, 0.4)'
                 }}
-                whileTap={!selectedFile || !isLabeled || !dataType || isLoading ? {} : { scale: 0.98 }}
+                whileTap={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) ? {} : { scale: 0.98 }}
               >
                 {isLoading ? (
                   <span className="flex items-center">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    >
-                      <Loader2 className="h-6 w-6 mr-3" />
-                    </motion.div>
+                    <Loader2 className="h-6 w-6 mr-3 animate-spin" />
                     Processing...
                   </span>
                 ) : (

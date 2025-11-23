@@ -77,16 +77,16 @@ export default function Home() {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 1, delay: 0.4 }}
-                className="flex justify-center"
+                className="flex justify-center mb-8"
               >
                 <motion.div
                   className="relative"
                   animate={{ 
-                    rotateY: 360,
+                    rotate: 360,
                     scale: [1, 1.1, 1]
                   }}
                   transition={{ 
-                    rotateY: { duration: 8, repeat: Infinity, ease: "linear" },
+                    rotate: { duration: 8, repeat: Infinity, ease: "linear" },
                     scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                   }}
                   style={{

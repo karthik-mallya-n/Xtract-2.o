@@ -43,6 +43,14 @@ interface TrainingResults {
       'f1-score': number;
       support: number;
     }>;
+    // Unsupervised/clustering metrics
+    silhouette_score?: number;
+    davies_bouldin_score?: number;
+    calinski_harabasz_score?: number;
+    n_clusters?: number;
+    cluster_distribution?: Record<string, number>;
+    n_samples?: number;
+    n_features?: number;
   };
   training_details?: {
     training_samples?: number;
@@ -71,8 +79,12 @@ interface TrainingResults {
     problem_type?: string;
     feature_count?: number;
     dataset_shape?: number[];
+    numeric_cols?: string[];
+    categorical_cols?: string[];
   };
   model_params?: Record<string, string | number | boolean>;
+  numeric_cols?: string[];
+  categorical_cols?: string[];
 }
 
 /**
@@ -125,18 +137,22 @@ function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
  */
 interface MetricCardProps {
   title: string;
-  value: string | number;
+  value: string | number | null | undefined;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
-  format?: 'percentage' | 'decimal' | 'text';
+  format?: 'percentage' | 'decimal' | 'text' | 'number';
   description?: string;
 }
 
 function MetricCard({ title, value, icon: Icon, color, format = 'text', description }: MetricCardProps) {
-  const formatValue = (val: string | number) => {
+  const formatValue = (val: string | number | null | undefined) => {
+    if (val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+      return 'N/A';
+    }
     if (typeof val === 'string') return val;
     if (format === 'percentage') return `${(val * 100).toFixed(2)}%`;
     if (format === 'decimal') return val.toFixed(4);
+    if (format === 'number') return val.toLocaleString();
     return val.toString();
   };
 
@@ -372,6 +388,107 @@ function ResultsPageContent() {
     return Array.from({length: featureCount}, (_, i) => `Feature_${i + 1}`);
   }, [trainingResults]);
 
+  // Get categorical columns from training results
+  const getCategoricalCols = useCallback((): string[] => {
+    const categoricalCols = (
+      trainingResults?.categorical_cols ||
+      trainingResults?.feature_info?.categorical_cols ||
+      trainingResults?.training_details?.categorical_cols ||
+      trainingResults?.result?.categorical_cols ||
+      trainingResults?.result?.feature_info?.categorical_cols ||
+      []
+    ) as string[];
+    
+    // Debug logging
+    if (categoricalCols.length > 0) {
+      console.log('📊 Categorical columns found:', categoricalCols);
+    } else {
+      console.log('⚠️ No categorical columns found in training results');
+    }
+    
+    return categoricalCols;
+  }, [trainingResults]);
+
+  // Check if a feature is categorical
+  const isCategorical = useCallback((featureName: string): boolean => {
+    const categoricalCols = getCategoricalCols();
+    
+    // Direct match (case-sensitive)
+    if (categoricalCols.includes(featureName)) {
+      console.log(`✅ "${featureName}" is categorical (direct match)`);
+      return true;
+    }
+    
+    // Case-insensitive match
+    const lowerFeatureName = featureName.toLowerCase();
+    const matchedCol = categoricalCols.find(col => col.toLowerCase() === lowerFeatureName);
+    if (matchedCol) {
+      console.log(`✅ "${featureName}" is categorical (case-insensitive match with "${matchedCol}")`);
+      return true;
+    }
+    
+    // Check if feature name partially matches any categorical column (handles variations)
+    const partialMatch = categoricalCols.some(col => {
+      const lowerCol = col.toLowerCase();
+      return lowerCol.includes(lowerFeatureName) || lowerFeatureName.includes(lowerCol);
+    });
+    if (partialMatch) {
+      console.log(`✅ "${featureName}" is categorical (partial match)`);
+      return true;
+    }
+    
+    // Expanded fallback: Check for common categorical field patterns
+    const categoricalPatterns = [
+      // Personal/Demographic
+      'gender', 'sex', 'title', 'prefix', 'suffix', 'race', 'ethnicity',
+      // Location
+      'country', 'city', 'state', 'region', 'location', 'address', 'zip', 'postal', 'area', 'zone',
+      // Product/Item
+      'category', 'type', 'kind', 'class', 'group', 'brand', 'model', 'make', 'manufacturer',
+      'color', 'colour', 'size', 'style', 'variant', 'version',
+      // Status/State
+      'status', 'state', 'condition', 'quality', 'grade', 'level', 'tier', 'rank',
+      // Identification
+      'name', 'code', 'id', 'identifier', 'key', 'tag', 'label',
+      // Boolean-like
+      'yes', 'no', 'true', 'false', 'active', 'inactive', 'enabled', 'disabled',
+      // Gender/Sex
+      'male', 'female', 'other', 'm', 'f',
+      // Common categorical values
+      'option', 'choice', 'selection', 'preference',
+      // Time-related (often categorical)
+      'day', 'month', 'year', 'season', 'quarter', 'weekday', 'weekend',
+      // Other common patterns
+      'description', 'note', 'comment', 'remark', 'text', 'string'
+    ];
+    
+    const lowerName = featureName.toLowerCase().trim();
+    const matchedPattern = categoricalPatterns.find(pattern => {
+      // Check if pattern is in the name or name is in pattern
+      return lowerName.includes(pattern) || pattern.includes(lowerName);
+    });
+    if (matchedPattern) {
+      console.log(`✅ "${featureName}" is categorical (pattern match: "${matchedPattern}")`);
+      return true;
+    }
+    
+    // Additional heuristic: If column name contains spaces or special characters that suggest text
+    // (many categorical columns have descriptive names with spaces)
+    if (featureName.includes(' ') || featureName.includes('_') || featureName.includes('-')) {
+      // Check if it's NOT a numeric-looking name (e.g., "Annual Income (k$)" might be numeric)
+      const numericIndicators = ['income', 'price', 'cost', 'amount', 'value', 'score', 'rate', 'percent', '%', 'k$', '$'];
+      const hasNumericIndicator = numericIndicators.some(indicator => lowerName.includes(indicator));
+      
+      if (!hasNumericIndicator) {
+        console.log(`✅ "${featureName}" is categorical (heuristic: contains spaces/special chars, no numeric indicators)`);
+        return true;
+      }
+    }
+    
+    console.log(`❌ "${featureName}" is NOT categorical`);
+    return false;
+  }, [getCategoricalCols]);
+
   // Initialize form data when training results change
   useEffect(() => {
     if (trainingResults) {
@@ -442,12 +559,13 @@ function ResultsPageContent() {
       }
 
       // Convert form data to feature array in the correct order
-      const features = featureNames.map(name => parseFloat(formData[name]));
-      
-      // Validate numeric values
-      if (features.some(isNaN)) {
-        throw new Error('All inputs must be valid numbers');
-      }
+      // Send raw values - backend will handle preprocessing (numeric/categorical)
+      const features = featureNames.map(name => {
+        const value = formData[name];
+        // Try to parse as number, but keep as string if it fails (for categorical)
+        const numValue = parseFloat(value);
+        return isNaN(numValue) ? value : numValue;
+      });
 
       const response = await fetch('/api/predict', {
         method: 'POST',
@@ -502,19 +620,21 @@ function ResultsPageContent() {
         
         {/* Loading Content */}
         <div className="relative z-10 text-center">
-          <motion.div
-            className="flex justify-center mb-8"
-            animate={{ 
-              rotateY: 360,
-              scale: [1, 1.2, 1]
-            }}
-            transition={{ 
-              rotateY: { duration: 2, repeat: Infinity, ease: "linear" },
-              scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
-            }}
-          >
-            <Brain className="h-24 w-24 text-cyan-400" style={{filter: 'drop-shadow(0 0 20px rgba(0, 245, 255, 0.5))'}} />
-          </motion.div>
+          <div className="flex justify-center mb-8">
+            <motion.div
+              animate={{ 
+                rotate: 360,
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ 
+                rotate: { duration: 3, repeat: Infinity, ease: "linear" },
+                scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+              }}
+              className="flex justify-center"
+            >
+              <Brain className="h-24 w-24 text-cyan-400" style={{filter: 'drop-shadow(0 0 20px rgba(0, 245, 255, 0.5))'}} />
+            </motion.div>
+          </div>
           <h2 className="text-4xl font-black text-white mb-6">
             Loading Training Results
           </h2>
@@ -557,11 +677,11 @@ function ResultsPageContent() {
                   boxShadow: '0 0 30px rgba(0, 245, 255, 0.3)'
                 }}
                 animate={{ 
-                  rotateY: 360,
+                  rotate: 360,
                   scale: [1, 1.1, 1]
                 }}
                 transition={{ 
-                  rotateY: { duration: 8, repeat: Infinity, ease: "linear" },
+                  rotate: { duration: 8, repeat: Infinity, ease: "linear" },
                   scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
               >
@@ -621,40 +741,85 @@ function ResultsPageContent() {
                 transition={{ duration: 0.5 }}
               >
                 {/* Performance Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                  <MetricCard
-                    title="Test Accuracy"
-                    value={trainingResults.performance?.accuracy || trainingResults.main_score}
-                    icon={TrendingUp}
-                    color="text-cyan-400"
-                    format="percentage"
-                    description="Performance on test data"
-                  />
-                  <MetricCard
-                    title="Precision"
-                    value={trainingResults.performance?.precision || trainingResults.performance?.accuracy || trainingResults.main_score}
-                    icon={Target}
-                    color="text-green-400"
-                    format="percentage"
-                    description="Model precision score"
-                  />
-                  <MetricCard
-                    title="Recall"
-                    value={trainingResults.performance?.recall || trainingResults.performance?.accuracy || trainingResults.main_score}
-                    icon={Target}
-                    color="text-blue-400"
-                    format="percentage"
-                    description="Model recall score"
-                  />
-                  <MetricCard
-                    title="F1-Score"
-                    value={trainingResults.performance?.f1_score || trainingResults.performance?.accuracy || trainingResults.main_score}
-                    icon={TrendingUp}
-                    color="text-purple-400"
-                    format="percentage"
-                    description="Harmonic mean of precision and recall"
-                  />
-                </div>
+                {trainingResults.performance?.model_type === 'unsupervised' ? (
+                  // Unsupervised/Clustering Metrics
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <MetricCard
+                      title="Silhouette Score"
+                      value={trainingResults.performance?.silhouette_score !== undefined 
+                        ? trainingResults.performance.silhouette_score 
+                        : trainingResults.main_score}
+                      icon={TrendingUp}
+                      color="text-cyan-400"
+                      format="decimal"
+                      description="Clustering quality score (-1 to 1, higher is better)"
+                    />
+                    <MetricCard
+                      title="Number of Clusters"
+                      value={trainingResults.performance?.n_clusters || 0}
+                      icon={Target}
+                      color="text-green-400"
+                      format="number"
+                      description="Total clusters identified"
+                    />
+                    <MetricCard
+                      title="Davies-Bouldin Index"
+                      value={trainingResults.performance?.davies_bouldin_score !== undefined
+                        ? trainingResults.performance.davies_bouldin_score
+                        : null}
+                      icon={Target}
+                      color="text-blue-400"
+                      format="decimal"
+                      description="Clustering quality (lower is better)"
+                    />
+                    <MetricCard
+                      title="Calinski-Harabasz Index"
+                      value={trainingResults.performance?.calinski_harabasz_score !== undefined
+                        ? trainingResults.performance.calinski_harabasz_score
+                        : null}
+                      icon={TrendingUp}
+                      color="text-purple-400"
+                      format="number"
+                      description="Clustering quality (higher is better)"
+                    />
+                  </div>
+                ) : (
+                  // Supervised Metrics (Classification/Regression)
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <MetricCard
+                      title="Test Accuracy"
+                      value={trainingResults.performance?.accuracy || trainingResults.main_score}
+                      icon={TrendingUp}
+                      color="text-cyan-400"
+                      format="percentage"
+                      description="Performance on test data"
+                    />
+                    <MetricCard
+                      title="Precision"
+                      value={trainingResults.performance?.precision || trainingResults.performance?.accuracy || trainingResults.main_score}
+                      icon={Target}
+                      color="text-green-400"
+                      format="percentage"
+                      description="Model precision score"
+                    />
+                    <MetricCard
+                      title="Recall"
+                      value={trainingResults.performance?.recall || trainingResults.performance?.accuracy || trainingResults.main_score}
+                      icon={Target}
+                      color="text-blue-400"
+                      format="percentage"
+                      description="Model recall score"
+                    />
+                    <MetricCard
+                      title="F1-Score"
+                      value={trainingResults.performance?.f1_score || trainingResults.performance?.accuracy || trainingResults.main_score}
+                      icon={TrendingUp}
+                      color="text-purple-400"
+                      format="percentage"
+                      description="Harmonic mean of precision and recall"
+                    />
+                  </div>
+                )}
 
                 {/* Training Details */}
                 <div className="futuristic-card p-6">
@@ -683,7 +848,11 @@ function ResultsPageContent() {
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-yellow-400 mb-2">
-                        {trainingResults.training_details?.training_time ? `${trainingResults.training_details.training_time}s` : trainingResults.performance?.training_time ? `${trainingResults.performance.training_time.toFixed(2)}s` : 'N/A'}
+                        {trainingResults.training_details?.training_time 
+                          ? `${Number(trainingResults.training_details.training_time).toFixed(5)}s` 
+                          : trainingResults.performance?.training_time 
+                            ? `${Number(trainingResults.performance.training_time).toFixed(5)}s` 
+                            : 'N/A'}
                       </div>
                       <div className="text-sm text-gray-400">Training Time</div>
                     </div>
@@ -903,6 +1072,8 @@ function ResultsPageContent() {
                             .replace(/Cm/g, '(cm)') // Replace Cm with (cm)
                             .replace(/Id/g, 'ID'); // Replace Id with ID
                           
+                          const isCat = isCategorical(featureName);
+                          
                           return (
                             <div key={featureName}>
                               <label 
@@ -910,17 +1081,32 @@ function ResultsPageContent() {
                                 className="block text-lg font-bold text-gray-300 mb-3"
                               >
                                 {label}
+                                {isCat && (
+                                  <span className="ml-2 text-sm font-normal text-cyan-400">(Text)</span>
+                                )}
                               </label>
-                              <input
-                                type="number"
-                                id={featureName}
-                                step="0.1"
-                                value={formData[featureName] || ''}
-                                onChange={(e) => handleInputChange(featureName, e.target.value)}
-                                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all duration-200"
-                                placeholder="Enter value..."
-                                required
-                              />
+                              {isCat ? (
+                                <input
+                                  type="text"
+                                  id={featureName}
+                                  value={formData[featureName] || ''}
+                                  onChange={(e) => handleInputChange(featureName, e.target.value)}
+                                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all duration-200"
+                                  placeholder="Enter text value..."
+                                  required
+                                />
+                              ) : (
+                                <input
+                                  type="number"
+                                  id={featureName}
+                                  step="0.1"
+                                  value={formData[featureName] || ''}
+                                  onChange={(e) => handleInputChange(featureName, e.target.value)}
+                                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all duration-200"
+                                  placeholder="Enter numeric value..."
+                                  required
+                                />
+                              )}
                             </div>
                           );
                         })}
@@ -1043,26 +1229,53 @@ function ResultsPageContent() {
                     >
                       <h3 className="text-xl font-bold text-white mb-4">Training Summary</h3>
                       <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-300">Accuracy:</span>
-                          <span className="ml-2 text-cyan-400 font-bold">
-                            {((trainingResults.performance?.accuracy || trainingResults.main_score) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-300">CV Score:</span>
-                          <span className="ml-2 text-gray-400">
-                            {((trainingResults.performance?.cv_accuracy || trainingResults.main_score * 0.9) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-300">Status:</span>
-                          <span className={`ml-2 font-medium ${
-                            trainingResults.threshold_met ? 'text-green-400' : 'text-yellow-400'
-                          }`}>
-                            {trainingResults.threshold_met ? '✅ Excellent' : '⚠️ Good'}
-                          </span>
-                        </div>
+                        {trainingResults.performance?.model_type === 'unsupervised' ? (
+                          <>
+                            <div>
+                              <span className="font-medium text-gray-300">Silhouette Score:</span>
+                              <span className="ml-2 text-cyan-400 font-bold">
+                                {trainingResults.performance?.silhouette_score !== undefined
+                                  ? trainingResults.performance.silhouette_score.toFixed(4)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-300">Clusters:</span>
+                              <span className="ml-2 text-gray-400">
+                                {trainingResults.performance?.n_clusters || 'N/A'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-300">Status:</span>
+                              <span className="ml-2 font-medium text-green-400">
+                                ✅ Clustering Complete
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div>
+                              <span className="font-medium text-gray-300">Accuracy:</span>
+                              <span className="ml-2 text-cyan-400 font-bold">
+                                {((trainingResults.performance?.accuracy || trainingResults.main_score) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-300">CV Score:</span>
+                              <span className="ml-2 text-gray-400">
+                                {((trainingResults.performance?.cv_accuracy || trainingResults.main_score * 0.9) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-300">Status:</span>
+                              <span className={`ml-2 font-medium ${
+                                trainingResults.threshold_met ? 'text-green-400' : 'text-yellow-400'
+                              }`}>
+                                {trainingResults.threshold_met ? '✅ Excellent' : '⚠️ Good'}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}
