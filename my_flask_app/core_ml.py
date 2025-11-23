@@ -255,6 +255,7 @@ Dataset Information:
 - Columns: {total_columns}  
 - Target Variable Type: {target_type}
 - Data Labeling: {is_labeled}
+- All Column Names: {all_column_names}
 - Numeric Columns: {numeric_columns}
 - Categorical Columns: {categorical_columns}
 
@@ -264,12 +265,21 @@ First 20 rows of actual data:
 CRITICAL INSTRUCTIONS:
 1. **Semantic Analysis**: Analyze column names and values to understand the dataset's domain
 2. **Scenario Detection**: Determine which of the 4 scenarios applies to this dataset
-3. **INCLUDE ALL MODELS**: From the detected scenario, include ALL models listed above (not just top 3)
-4. **Rank by Accuracy**: Rank ALL models in descending order of expected accuracy for this specific dataset
+3. **COLUMN SELECTION**: Intelligently recommend which columns to INCLUDE and EXCLUDE for training
+4. **INCLUDE ALL MODELS**: From the detected scenario, include ALL models listed above (not just top 3)
+5. **Rank by Accuracy**: Rank ALL models in descending order of expected accuracy for this specific dataset
+
+⚠️ **COLUMN SELECTION RULES:**
+- **EXCLUDE**: ID columns, timestamps, dates, keys, irrelevant identifiers
+- **EXCLUDE**: Columns with high cardinality that won't help prediction (like unique names, URLs)
+- **EXCLUDE**: Columns that would cause data leakage (future information)
+- **INCLUDE**: Features that have logical relationship to the target variable
+- **INCLUDE**: Meaningful categorical and numerical features
+- **INCLUDE**: Engineered features that could be derived
 
 You MUST include ALL models from the detected scenario's model list. Do not limit to just 3-5 models.
 
-Respond in JSON format with ALL models:
+Respond in JSON format with ALL models AND column recommendations:
 
 ```json
 {{
@@ -281,6 +291,19 @@ Respond in JSON format with ALL models:
   "semantic_analysis": {{
     "domain": "Identified domain (medical, financial, etc.)",
     "key_insights": "Important observations from column names and data patterns"
+  }},
+  "column_selection": {{
+    "columns_to_include": [
+      "column1", "column2", "column3"
+    ],
+    "columns_to_exclude": [
+      "id", "timestamp", "irrelevant_column"
+    ],
+    "reasoning": {{
+      "included_reasoning": "Why these columns were selected for training",
+      "excluded_reasoning": "Why these columns were excluded (IDs, dates, irrelevant data, etc.)"
+    }},
+    "target_column_recommendation": "suggested_target_column_name"
   }},
   "recommended_models": [
     {{
@@ -307,7 +330,7 @@ Respond in JSON format with ALL models:
 }}
 ```
 
-REMEMBER: Include ALL models from the detected scenario, not just the top few. The user specifically wants to see the complete list ranked by accuracy."""
+REMEMBER: Include ALL models from the detected scenario AND provide intelligent column selection recommendations. The user specifically wants to see the complete list ranked by accuracy AND which columns to use for training."""
 
             # Format the prompt with actual data
             prompt = prompt_template.format(
@@ -315,6 +338,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 total_columns=dataset_analysis['total_columns'],
                 target_type=target_type,
                 is_labeled=is_labeled,
+                all_column_names=dataset_analysis['column_names'],
                 numeric_columns=dataset_analysis['numeric_columns'],
                 categorical_columns=dataset_analysis['categorical_columns'],
                 first_20_rows_csv=dataset_analysis['first_20_rows_csv']
@@ -545,7 +569,14 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             print(f"≡ƒôè Train size: {X_train.shape[0]}, Test size: {X_test.shape[0]}")
             
             # Determine problem type
-            is_classification = user_data.get('data_type') == 'categorical' or len(y.unique()) < 20
+            # Respect user's explicit choice first, then use heuristics
+            if user_data.get('data_type') == 'categorical':
+                is_classification = True
+            elif user_data.get('data_type') == 'continuous':
+                is_classification = False
+            else:
+                # Use heuristic for auto-detection
+                is_classification = len(y.unique()) < 20 and y.dtype in ['object', 'category']
             
             # Get the appropriate model
             model = self._get_model_instance(model_name, is_classification)
@@ -631,6 +662,9 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             dict: Training results with model performance
         """
         try:
+            print("\n🚨 DEBUG: Starting train_specific_model")
+            print(f"🚨 DEBUG: model_name={model_name}, user_data={user_data}")
+            
             import time
             from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler
             from sklearn.impute import SimpleImputer
@@ -685,6 +719,79 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             print(f"\n≡ƒôè Statistical summary:")
             print(df.describe())
+            
+            # ============================================================================
+            # STEP 2.5: AI-POWERED COLUMN SELECTION
+            # ============================================================================
+            print(f"\n{'='*80}")
+            print("🤖 STEP 2.5: AI-POWERED COLUMN SELECTION")
+            print(f"{'='*80}")
+            
+            # Get AI recommendations for column selection
+            try:
+                dataset_analysis = self.analyze_dataset(file_path)
+                ai_recommendations = self.make_llm_request(user_data, dataset_analysis)
+                
+                selected_columns = None
+                excluded_columns = []
+                column_reasoning = {}
+                
+                if ai_recommendations.get('success') and 'column_selection' in ai_recommendations.get('recommendations', {}):
+                    column_selection = ai_recommendations['recommendations']['column_selection']
+                    selected_columns = column_selection.get('columns_to_include', [])
+                    excluded_columns = column_selection.get('columns_to_exclude', [])
+                    column_reasoning = column_selection.get('reasoning', {})
+                    
+                    print(f"🎯 AI COLUMN SELECTION RECOMMENDATIONS:")
+                    print(f"✅ Columns to include ({len(selected_columns)}):")
+                    for col in selected_columns:
+                        if col in df.columns:
+                            print(f"   ✓ {col}")
+                        else:
+                            print(f"   ⚠️  {col} (not found in dataset)")
+                    
+                    print(f"\n❌ Columns to exclude ({len(excluded_columns)}):")
+                    for col in excluded_columns:
+                        if col in df.columns:
+                            print(f"   ✗ {col}")
+                        else:
+                            print(f"   ⚠️  {col} (not found in dataset)")
+                    
+                    print(f"\n💡 AI REASONING:")
+                    print(f"   📥 Why included: {column_reasoning.get('included_reasoning', 'No reasoning provided')}")
+                    print(f"   📤 Why excluded: {column_reasoning.get('excluded_reasoning', 'No reasoning provided')}")
+                    
+                    # Validate selected columns exist in dataset
+                    valid_selected = [col for col in selected_columns if col in df.columns]
+                    valid_excluded = [col for col in excluded_columns if col in df.columns]
+                    
+                    if valid_selected:
+                        print(f"\n🔧 APPLYING AI COLUMN SELECTION...")
+                        print(f"   Using {len(valid_selected)} AI-recommended columns for training")
+                        
+                        # Apply column filtering - exclude the selected columns from the excluded list
+                        columns_to_use = valid_selected.copy()
+                        
+                        # Add any remaining columns that weren't explicitly excluded
+                        for col in df.columns:
+                            if col not in valid_excluded and col not in valid_selected:
+                                columns_to_use.append(col)
+                                print(f"   📋 Also including: {col} (not in exclusion list)")
+                        
+                        # Filter the dataset to use only selected columns
+                        df_filtered = df[columns_to_use]
+                        print(f"   📊 Dataset filtered: {df.shape[1]} → {df_filtered.shape[1]} columns")
+                        df = df_filtered
+                        
+                    else:
+                        print(f"⚠️  No valid AI-selected columns found, using all columns")
+                else:
+                    print(f"⚠️  AI column selection not available, using all columns")
+                    print(f"   AI response: {ai_recommendations.get('error', 'No error message')}")
+                    
+            except Exception as e:
+                print(f"❌ Error getting AI column recommendations: {str(e)}")
+                print(f"   Continuing with all columns...")
             
             # ============================================================================
             # STEP 3: IDENTIFY TARGET AND FEATURES
@@ -1152,11 +1259,20 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 return RandomForestRegressor(n_estimators=100, random_state=42)
             elif 'linear regression' in model_name_lower:
                 return LinearRegression()
+            elif 'ridge regression' in model_name_lower or 'ridge' in model_name_lower:
+                from sklearn.linear_model import Ridge
+                return Ridge(random_state=42)
+            elif 'lasso regression' in model_name_lower or 'lasso' in model_name_lower:
+                from sklearn.linear_model import Lasso
+                return Lasso(random_state=42)
+            elif 'elasticnet' in model_name_lower or 'elastic net' in model_name_lower:
+                from sklearn.linear_model import ElasticNet
+                return ElasticNet(random_state=42)
             elif 'svm' in model_name_lower or 'support vector' in model_name_lower:
                 return SVR()
             else:
-                # Default to Random Forest for regression
-                return RandomForestRegressor(n_estimators=100, random_state=42)
+                # Default to Linear Regression for regression
+                return LinearRegression()
     
     def _train_unsupervised_model(self, X: pd.DataFrame, model_name: str, model_dir: str) -> Dict[str, Any]:
         """

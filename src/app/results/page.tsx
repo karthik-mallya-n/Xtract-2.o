@@ -19,6 +19,23 @@ import { motion } from 'framer-motion';
 import ParticleBackground from '@/components/ParticleBackground';
 
 // Types
+interface AIColumnInfo {
+  name: string;
+  type: 'numeric' | 'categorical';
+  ai_selected: boolean;
+  required: boolean;
+}
+
+interface AIColumnSelection {
+  enabled: boolean;
+  selected_columns: string[];
+  excluded_columns: string[];
+  reasoning: {
+    included_reasoning?: string;
+    excluded_reasoning?: string;
+  };
+}
+
 interface TrainingResults {
   model_name?: string;
   main_score: number;
@@ -55,6 +72,12 @@ interface TrainingResults {
     model_type?: string;
     cv_folds?: number;
     best_score?: number;
+    problem_type?: string;
+    test_split?: number;
+    cross_validation?: number;
+    preprocessing_steps?: number;
+    data_quality?: string;
+    timestamp?: string;
   };
   model_info?: {
     name?: string;
@@ -71,6 +94,10 @@ interface TrainingResults {
     problem_type?: string;
     feature_count?: number;
     dataset_shape?: number[];
+  };
+  file_info?: {
+    filename?: string;
+    target_column?: string;
   };
   model_params?: Record<string, string | number | boolean>;
 }
@@ -331,6 +358,9 @@ function ResultsPageContent() {
 
   // Dynamic prediction form state
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [aiColumns, setAiColumns] = useState<AIColumnInfo[]>([]);
+  const [aiColumnSelection, setAiColumnSelection] = useState<AIColumnSelection | null>(null);
+  const [isLoadingColumns, setIsLoadingColumns] = useState(true);
   
   const [prediction, setPrediction] = useState<{
     value: string;
@@ -345,9 +375,35 @@ function ResultsPageContent() {
     timestamp: Date;
   }>>([]);
 
-  // Get feature names from training results
+  // Fetch AI-recommended columns from API
+  const fetchAIColumns = useCallback(async () => {
+    try {
+      setIsLoadingColumns(true);
+      const response = await fetch('http://localhost:5000/api/model-columns');
+      const data = await response.json();
+      
+      if (data.success) {
+        setAiColumns(data.columns_for_prediction || []);
+        setAiColumnSelection(data.ai_column_selection || null);
+        console.log('🤖 AI Column data loaded:', data);
+      }
+    } catch (err) {
+      console.error('❌ Failed to load AI columns:', err);
+    } finally {
+      setIsLoadingColumns(false);
+    }
+  }, []);
+
+  // Get AI-recommended feature names only
   const getFeatureNames = useCallback((): string[] => {
-    // Try multiple possible locations for feature names, prioritizing training_details
+    // If AI columns are available, use only AI-selected ones
+    if (aiColumns.length > 0) {
+      return aiColumns
+        .filter(col => col.ai_selected)
+        .map(col => col.name);
+    }
+    
+    // Fallback to original logic if AI columns not available
     if (trainingResults?.training_details?.feature_names) {
       return trainingResults.training_details.feature_names as string[];
     }
@@ -357,20 +413,13 @@ function ResultsPageContent() {
     if (trainingResults?.feature_info?.original_feature_names) {
       return trainingResults.feature_info.original_feature_names as string[];
     }
-    if (trainingResults?.training_results?.feature_info?.feature_names) {
-      return trainingResults.training_results.feature_info.feature_names as string[];
-    }
-    if (trainingResults?.model_info?.feature_names) {
-      return trainingResults.model_info.feature_names as string[];
-    }
     
     // Generate generic feature names as fallback
     const featureCount = trainingResults?.training_details?.features || 
-                        trainingResults?.model_info?.feature_count || 
-                        trainingResults?.feature_info?.feature_names?.length || 4;
+                        trainingResults?.model_info?.feature_count || 4;
     
     return Array.from({length: featureCount}, (_, i) => `Feature_${i + 1}`);
-  }, [trainingResults]);
+  }, [aiColumns, trainingResults]);
 
   // Initialize form data when training results change
   useEffect(() => {
@@ -383,6 +432,11 @@ function ResultsPageContent() {
       setFormData(initialFormData);
     }
   }, [trainingResults, getFeatureNames]);
+
+  // Fetch AI columns when component mounts
+  useEffect(() => {
+    fetchAIColumns();
+  }, [fetchAIColumns]);
 
   // Load training results from URL params or localStorage
   useEffect(() => {
@@ -442,20 +496,33 @@ function ResultsPageContent() {
       }
 
       // Convert form data to feature array in the correct order
-      const features = featureNames.map(name => parseFloat(formData[name]));
+      const features = featureNames.map(name => {
+        const value = formData[name];
+        const aiColumnInfo = aiColumns.find(col => col.name === name);
+        return aiColumnInfo?.type === 'numeric' ? parseFloat(value) || 0 : value;
+      });
       
-      // Validate numeric values
-      if (features.some(isNaN)) {
-        throw new Error('All inputs must be valid numbers');
+      // Validate numeric values for numeric columns
+      const invalidFeatures = features.some((feature, index) => {
+        const featureName = featureNames[index];
+        const aiColumnInfo = aiColumns.find(col => col.name === featureName);
+        return aiColumnInfo?.type === 'numeric' && isNaN(feature as number);
+      });
+      
+      if (invalidFeatures) {
+        throw new Error('All numeric inputs must be valid numbers');
       }
 
-      const response = await fetch('/api/predict', {
+      const response = await fetch('http://localhost:5000/api/predict', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          features: features
+          input_data: Object.fromEntries(
+            featureNames.map((name, index) => [name, features[index]])
+          ),
+          file_id: 'latest'
         }),
       });
 
@@ -890,45 +957,101 @@ function ResultsPageContent() {
                       <div className="p-3 rounded-xl bg-blue-900/30 border border-blue-500/30 mr-4">
                         <Brain className="h-8 w-8 text-blue-400" />
                       </div>
-                      <h2 className="text-2xl font-bold text-white">Make a Prediction</h2>
+                      <div>
+                        <h2 className="text-2xl font-bold text-white">Make a Prediction</h2>
+                        {aiColumnSelection && aiColumns.length > 0 && (
+                          <p className="text-cyan-400 text-sm mt-1">
+                            🤖 Showing {aiColumns.filter(col => col.ai_selected).length} AI-recommended columns
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    <form onSubmit={handlePrediction} className="space-y-6">
-                      <div className="grid md:grid-cols-2 gap-6">
-                        {getFeatureNames().map((featureName) => {
-                          // Create a user-friendly label from the feature name
-                          const label = featureName
-                            .replace(/([A-Z])/g, ' $1') // Add spaces before capital letters
-                            .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
-                            .replace(/Cm/g, '(cm)') // Replace Cm with (cm)
-                            .replace(/Id/g, 'ID'); // Replace Id with ID
-                          
-                          return (
-                            <div key={featureName}>
-                              <label 
-                                htmlFor={featureName} 
-                                className="block text-lg font-bold text-gray-300 mb-3"
-                              >
-                                {label}
-                              </label>
-                              <input
-                                type="number"
-                                id={featureName}
-                                step="0.1"
-                                value={formData[featureName] || ''}
-                                onChange={(e) => handleInputChange(featureName, e.target.value)}
-                                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all duration-200"
-                                placeholder="Enter value..."
-                                required
-                              />
-                            </div>
-                          );
-                        })}
+                    {/* AI Column Selection Info */}
+                    {aiColumnSelection && aiColumnSelection.reasoning.included_reasoning && (
+                      <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl">
+                        <div className="flex items-start">
+                          <div className="p-2 rounded-lg bg-blue-500/20 mr-3">
+                            <Brain className="h-5 w-5 text-blue-400" />
+                          </div>
+                          <div>
+                            <h4 className="text-lg font-bold text-blue-300 mb-2">AI Column Selection</h4>
+                            <p className="text-blue-200 text-sm leading-relaxed">
+                              {aiColumnSelection.reasoning.included_reasoning}
+                            </p>
+                            {aiColumnSelection.excluded_columns.length > 0 && aiColumnSelection.reasoning.excluded_reasoning && (
+                              <p className="text-gray-400 text-xs mt-2">
+                                <span className="font-medium">Excluded:</span> {aiColumnSelection.excluded_columns.join(', ')} - {aiColumnSelection.reasoning.excluded_reasoning}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
+                    )}
+
+                    <form onSubmit={handlePrediction} className="space-y-6">
+                      {isLoadingColumns ? (
+                        <div className="text-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-cyan-400 mx-auto mb-4" />
+                          <p className="text-gray-300">Loading AI-recommended columns...</p>
+                        </div>
+                      ) : (
+                        <div className="grid md:grid-cols-2 gap-6">
+                          {getFeatureNames().map((featureName) => {
+                            // Find the AI column info for this feature
+                            const aiColumnInfo = aiColumns.find(col => col.name === featureName);
+                            
+                            // Create a user-friendly label from the feature name
+                            const label = featureName
+                              .replace(/([A-Z])/g, ' $1') // Add spaces before capital letters
+                              .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+                              .replace(/Cm/g, '(cm)') // Replace Cm with (cm)
+                              .replace(/Id/g, 'ID'); // Replace Id with ID
+                            
+                            return (
+                              <div key={featureName} className="relative">
+                                <label 
+                                  htmlFor={featureName} 
+                                  className="block text-lg font-bold text-gray-300 mb-3"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <span>{label}</span>
+                                    {aiColumnInfo?.ai_selected && (
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/30">
+                                        🤖 AI Selected
+                                      </span>
+                                    )}
+                                  </div>
+                                </label>
+                                <input
+                                  type={aiColumnInfo?.type === 'numeric' ? 'number' : 'text'}
+                                  id={featureName}
+                                  step={aiColumnInfo?.type === 'numeric' ? '0.1' : undefined}
+                                  pattern={featureName.toLowerCase().includes('date') ? '[0-9\-/]*' : undefined}
+                                  value={formData[featureName] || ''}
+                                  onChange={(e) => handleInputChange(featureName, e.target.value)}
+                                  className={`w-full px-4 py-3 bg-gray-800/50 border rounded-xl text-white text-lg focus:ring-2 focus:border-transparent transition-all duration-200 ${
+                                    aiColumnInfo?.ai_selected 
+                                      ? 'border-cyan-500/50 focus:ring-cyan-400 ring-1 ring-cyan-500/20' 
+                                      : 'border-gray-600 focus:ring-blue-400'
+                                  }`}
+                                  placeholder={`Enter ${aiColumnInfo?.type === 'numeric' ? 'numeric' : 'text'} value...`}
+                                  title={featureName.toLowerCase().includes('date') ? 'Enter date in format: dd-mm-yyyy or dd/mm/yyyy' : undefined}
+                                  required
+                                />
+                                <div className="mt-1 text-xs text-gray-500">
+                                  Type: {aiColumnInfo?.type || 'unknown'}
+                                  {aiColumnInfo?.ai_selected && ' • Recommended by AI for optimal predictions'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       <motion.button
                         type="submit"
-                        disabled={isPredicting}
+                        disabled={isPredicting || isLoadingColumns}
                         className="w-full px-8 py-4 text-lg font-bold text-white rounded-xl transition-all duration-300 flex items-center justify-center"
                         style={{
                           background: isPredicting ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',

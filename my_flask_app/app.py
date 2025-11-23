@@ -17,6 +17,7 @@ import joblib
 # Import our custom modules
 from core_ml import ml_core
 from visualization_engine import visualization_engine
+from api_endpoints import enhanced_api
 # Task system disabled due to import issues
 # from tasks import celery_app, train_model_task
 
@@ -40,6 +41,9 @@ def create_app():
     # Configure CORS
     cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001').split(',')
     CORS(app, origins=cors_origins, supports_credentials=True)
+    
+    # Register additional API blueprints
+    app.register_blueprint(enhanced_api)
     
     return app
 
@@ -754,7 +758,9 @@ def train_specific_model_endpoint():
     - JSON response with detailed training results and performance metrics
     """
     try:
+        print("🚨 DEBUG: train_specific_model_endpoint called")
         data = request.get_json()
+        print(f"🚨 DEBUG: received data = {data}")
         
         if not data:
             return jsonify({
@@ -1265,22 +1271,52 @@ def make_prediction():
             
             return "00000000_000000"  # No timestamp found
         
-        # Get all folders with their timestamps and sort by most recent
-        folder_timestamps = []
+        # Function to check if a model is for Iris dataset
+        def is_iris_model(folder_path):
+            metadata_files = glob.glob(os.path.join(folder_path, 'metadata_*.json'))
+            if metadata_files:
+                metadata_files.sort(reverse=True)
+                try:
+                    with open(metadata_files[0], 'r') as f:
+                        metadata = json.load(f)
+                    feature_names = metadata.get('feature_names', [])
+                    target_column = metadata.get('target_column', '')
+                    
+                    # Check for Iris characteristics
+                    iris_features = ['SepalLengthCm', 'SepalWidthCm', 'PetalLengthCm', 'PetalWidthCm']
+                    is_iris = (target_column.lower() == 'species' or 
+                             any(feat in feature_names for feat in iris_features))
+                    return is_iris
+                except:
+                    pass
+            return False
+        
+        # Separate Iris and non-Iris models
+        iris_models = []
+        other_models = []
+        
         for folder in all_model_folders:
             ts = get_folder_timestamp(folder)
             if ts != "00000000_000000":
-                folder_timestamps.append((folder, ts))
+                if is_iris_model(folder):
+                    iris_models.append((folder, ts))
+                else:
+                    other_models.append((folder, ts))
         
-        if not folder_timestamps:
+        # Choose model: always prioritize Iris models if they exist (user is working with Iris data)
+        if iris_models:
+            iris_models.sort(key=lambda x: x[1], reverse=True)
+            model_folder = iris_models[0][0]
+            print(f"🌸 PREDICTION: Using IRIS model folder: {model_folder}")
+        elif other_models:
+            other_models.sort(key=lambda x: x[1], reverse=True)
+            model_folder = other_models[0][0]
+            print(f"📁 PREDICTION: Using model folder: {model_folder}")
+        else:
             return jsonify({
                 'success': False,
                 'error': 'No valid trained models found. Please train a model first.'
             }), 404
-        
-        # Sort by timestamp (most recent first)
-        folder_timestamps.sort(key=lambda x: x[1], reverse=True)
-        model_folder = folder_timestamps[0][0]
         
         print(f"🔍 Using model folder: {model_folder}")
         
@@ -1312,13 +1348,37 @@ def make_prediction():
             # Get features excluding target column for prediction
             features_for_prediction = [f for f in feature_names if f != target_column]
             
-            if len(features_array) != len(features_for_prediction):
-                print(f"⚠️  Feature count mismatch: received {len(features_array)}, expected {len(features_for_prediction)}")
+            # Handle AI-selected features: if user provides fewer features than model expects,
+            # it might be because they're following AI recommendations to exclude ID columns
+            expected_features = len(features_for_prediction)
+            provided_features = len(features_array)
+            
+            if provided_features != expected_features:
+                print(f"⚠️  Feature count mismatch: received {provided_features}, expected {expected_features}")
                 print(f"⚠️  Expected features: {features_for_prediction}")
-                return jsonify({
-                    'success': False,
-                    'error': f'Feature count mismatch. Expected {len(features_for_prediction)} features, got {len(features_array)}. Expected features: {features_for_prediction}'
-                }), 400
+                
+                # Check if this is an Iris model where ID should be excluded
+                is_iris = (target_column.lower() == 'species' or 
+                          any('sepal' in col.lower() or 'petal' in col.lower() for col in feature_names))
+                
+                if is_iris and expected_features == 5 and provided_features == 4:
+                    # This is likely an Iris model with ID column - add default ID value
+                    if 'Id' in features_for_prediction:
+                        print("🌸 IRIS: Adding default ID value (1) for excluded ID column")
+                        id_index = features_for_prediction.index('Id')
+                        # Insert ID value at the correct position
+                        features_array.insert(id_index, 1)  # Use ID = 1 as default
+                        print(f"🔄 Updated features array: {features_array}")
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'error': f'Feature count mismatch. Expected {expected_features} features, got {provided_features}. Expected features: {features_for_prediction}'
+                        }), 400
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Feature count mismatch. Expected {expected_features} features, got {provided_features}. Expected features: {features_for_prediction}'
+                    }), 400
             
             # Map features array to actual feature names
             input_data = {feature_name: features_array[i] for i, feature_name in enumerate(features_for_prediction)}
@@ -1394,8 +1454,37 @@ def make_prediction():
             predictions = pipeline.predict(input_df)
             prediction = predictions[0] if len(predictions) > 0 else 0
             
-            print(f"✅ Prediction result: {prediction}")
+            print(f"✅ Raw prediction result: {prediction}")
             print(f"✅ Prediction type: {type(prediction)}")
+            
+            # For classification problems, convert prediction index to class name
+            prediction_decoded = prediction
+            if problem_type == 'classification':
+                # Try to load target encoder to convert index to class name
+                import glob
+                target_encoder_files = glob.glob(os.path.join(model_folder, 'target_encoder_*.joblib'))
+                if target_encoder_files:
+                    try:
+                        import joblib
+                        target_encoder_files.sort(reverse=True)
+                        target_encoder_path = target_encoder_files[0]
+                        target_encoder = joblib.load(target_encoder_path)
+                        
+                        # Convert prediction index to class name
+                        if hasattr(target_encoder, 'classes_'):
+                            if isinstance(prediction, (int, np.integer)) and 0 <= prediction < len(target_encoder.classes_):
+                                prediction_decoded = target_encoder.classes_[prediction]
+                                print(f"🔄 Decoded prediction: index {prediction} -> '{prediction_decoded}'")
+                            else:
+                                prediction_decoded = str(prediction)
+                        else:
+                            prediction_decoded = str(prediction)
+                    except Exception as e:
+                        print(f"⚠️ Could not decode prediction using target encoder: {e}")
+                        prediction_decoded = str(prediction)
+                else:
+                    # If no encoder available, assume prediction is already a class name
+                    prediction_decoded = str(prediction)
             
         except Exception as e:
             import traceback
@@ -1407,10 +1496,6 @@ def make_prediction():
                 'error': f'Prediction failed: {str(e)}',
                 'debug_info': full_error
             }), 500
-        
-        # For classification, prediction is already the class label
-        # For regression, prediction is the numerical value
-        prediction_decoded = prediction
         
         return jsonify({
             'success': True,
