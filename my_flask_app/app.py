@@ -64,6 +64,80 @@ def health_check():
         'version': '1.0.0'
     })
 
+@app.route('/api/preview-columns', methods=['POST'])
+def preview_columns():
+    """
+    Preview columns from uploaded file without saving
+    
+    Expected form data:
+    - file: The dataset file
+    
+    Returns:
+    - JSON response with column names
+    """
+    try:
+        # Check if file is present in request
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file provided'
+            }), 400
+        
+        file = request.files['file']
+        
+        # Check if file is selected
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected'
+            }), 400
+        
+        # Validate file type
+        if not allowed_file(file.filename):
+            return jsonify({
+                'success': False,
+                'error': f'File type not allowed. Supported types: {", ".join(ALLOWED_EXTENSIONS)}'
+            }), 400
+        
+        # Read just the first few rows to get column names
+        import pandas as pd
+        import io
+        
+        file_content = file.read()
+        file.seek(0)  # Reset file pointer
+        
+        try:
+            if file.filename.endswith('.csv'):
+                df = pd.read_csv(io.StringIO(file_content.decode('utf-8')), nrows=5)
+            elif file.filename.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(io.BytesIO(file_content), nrows=5)
+            elif file.filename.endswith('.json'):
+                df = pd.read_json(io.StringIO(file_content.decode('utf-8')))
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Unsupported file format'
+                }), 400
+            
+            columns = list(df.columns)
+            
+            return jsonify({
+                'success': True,
+                'columns': columns,
+                'total_columns': len(columns)
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to read file: {str(e)}'
+            }), 500
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Preview failed: {str(e)}'
+        }), 500
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """
@@ -102,14 +176,26 @@ def upload_file():
             }), 400
         
         # Get user questionnaire data
-        is_labeled = request.form.get('is_labeled', '')
-        data_type = request.form.get('data_type', '')
+        is_labeled = request.form.get('is_labeled', '').strip()
+        data_type = request.form.get('data_type', '').strip()
+        target_column = request.form.get('target_column', '').strip()
         
-        if not is_labeled or not data_type:
+        # Validate required fields
+        if not is_labeled:
             return jsonify({
                 'success': False,
-                'error': 'Missing questionnaire data. Please specify if data is labeled and data type.'
+                'error': 'Missing questionnaire data. Please specify if data is labeled.'
             }), 400
+        
+        # For labeled data, data_type is required
+        if is_labeled.lower() == 'labeled':
+            if not data_type:
+                return jsonify({
+                    'success': False,
+                    'error': 'Missing questionnaire data. Please specify data type (continuous or categorical) for labeled data.'
+                }), 400
+            # For labeled data, target_column is also required if available
+            # (This will be validated later if needed)
         
         # Generate unique file ID
         file_id = str(uuid.uuid4())
@@ -132,7 +218,8 @@ def upload_file():
             'file_size': os.path.getsize(file_path),
             'user_answers': {
                 'is_labeled': is_labeled,
-                'data_type': data_type
+                'data_type': data_type if is_labeled.lower() == 'labeled' else '',
+                'target_column': target_column if is_labeled.lower() == 'labeled' else ''
             }
         }
         
@@ -209,29 +296,59 @@ def recommend_model():
         if analysis_warning:
             warnings.append(analysis_warning)
 
-        # Define backend fallback recommendations (must align with frontend expectations in select-model page)
-        backend_fallback = {
-            'recommended_models': [
-                {
-                    'name': 'Random Forest',
-                    'description': 'Robust ensemble method suitable for mixed feature types and handles non-linear relationships well.',
-                    'accuracy_estimate': 85,
-                    'reasoning': 'Default choice when data characteristics are unknown or moderate sized.'
-                }
-            ],
-            'alternative_models': [
-                {
-                    'name': 'Support Vector Machine',
-                    'description': 'Effective in high dimensional spaces; good baseline for classification.',
-                    'accuracy_estimate': 82
-                },
-                {
-                    'name': 'Logistic Regression',
-                    'description': 'Interpretable linear baseline useful for quick iteration.',
-                    'accuracy_estimate': 78
-                }
-            ]
-        }
+        # Check if data is unlabeled to provide appropriate fallback
+        is_unlabeled = user_answers.get('is_labeled', '').lower() == 'unlabeled'
+        print(f"🔍 DEBUG: is_unlabeled = {is_unlabeled}, user_answers['is_labeled'] = {user_answers.get('is_labeled')}")
+        
+        # Define backend fallback recommendations based on data type
+        if is_unlabeled:
+            # Unlabeled data - recommend clustering models
+            backend_fallback = {
+                'recommended_models': [
+                    {
+                        'name': 'KMeans',
+                        'description': 'Partition-based clustering algorithm that groups data into k clusters. Fast and efficient for large datasets.',
+                        'accuracy_estimate': 85,
+                        'reasoning': 'Best choice for unlabeled data when number of clusters is known or can be estimated.'
+                    }
+                ],
+                'alternative_models': [
+                    {
+                        'name': 'DBSCAN',
+                        'description': 'Density-based clustering that can find clusters of arbitrary shape and identify outliers.',
+                        'accuracy_estimate': 80
+                    },
+                    {
+                        'name': 'Gaussian Mixture Model (GMM)',
+                        'description': 'Probabilistic clustering model that assumes data points are generated from a mixture of Gaussian distributions.',
+                        'accuracy_estimate': 82
+                    }
+                ]
+            }
+        else:
+            # Labeled data - recommend supervised models
+            backend_fallback = {
+                'recommended_models': [
+                    {
+                        'name': 'Random Forest',
+                        'description': 'Robust ensemble method suitable for mixed feature types and handles non-linear relationships well.',
+                        'accuracy_estimate': 85,
+                        'reasoning': 'Default choice when data characteristics are unknown or moderate sized.'
+                    }
+                ],
+                'alternative_models': [
+                    {
+                        'name': 'Support Vector Machine',
+                        'description': 'Effective in high dimensional spaces; good baseline for classification.',
+                        'accuracy_estimate': 82
+                    },
+                    {
+                        'name': 'Logistic Regression',
+                        'description': 'Interpretable linear baseline useful for quick iteration.',
+                        'accuracy_estimate': 78
+                    }
+                ]
+            }
 
         if not llm_response.get('success', False):
             error_msg = llm_response.get('error', 'LLM recommendation failed')
@@ -354,17 +471,37 @@ def recommend_model():
 
     except Exception as e:
         # Final safety net: still return fallback instead of 500
-        fallback = {
-            'recommended_models': [
-                {
-                    'name': 'Random Forest',
-                    'description': 'Standard fallback model.',
-                    'accuracy_estimate': 80,
-                    'reasoning': 'Safe default'
-                }
-            ],
-            'alternative_models': []
-        }
+        # Check if data is unlabeled for appropriate fallback
+        # Note: user_answers should be available from file_info
+        try:
+            final_is_unlabeled = user_answers.get('is_labeled', '').lower() == 'unlabeled'
+        except:
+            final_is_unlabeled = False
+        
+        if final_is_unlabeled:
+            fallback = {
+                'recommended_models': [
+                    {
+                        'name': 'KMeans',
+                        'description': 'Standard clustering fallback model.',
+                        'accuracy_estimate': 80,
+                        'reasoning': 'Safe default for unlabeled data'
+                    }
+                ],
+                'alternative_models': []
+            }
+        else:
+            fallback = {
+                'recommended_models': [
+                    {
+                        'name': 'Random Forest',
+                        'description': 'Standard fallback model.',
+                        'accuracy_estimate': 80,
+                        'reasoning': 'Safe default'
+                    }
+                ],
+                'alternative_models': []
+            }
         return jsonify({
             'success': True,
             'file_id': request.args.get('file_id'),
@@ -429,52 +566,13 @@ def start_training():
                     'user_answers': {}
                 }
             else:
-                # Try the default Iris dataset for demo purposes
-                demo_file = f"{app.config['UPLOAD_FOLDER']}/b0560d95-7006-4035-9ac9-a547229a0071.csv"
-                if os.path.exists(demo_file):
-                    file_path = demo_file
-                    print(f"Using demo file: {file_path}")
-                    file_info = {
-                        'file_id': file_id,
-                        'file_path': file_path,
-                        'original_filename': 'iris_demo.csv',
-                        'user_answers': {'is_labeled': 'labeled', 'data_type': 'continuous'}
-                    }
-                else:
-                    return jsonify({
-                        'success': False,
-                        'error': f'File with ID {file_id} not found. Please upload a file first.'
-                    }), 404
+                return jsonify({
+                    'success': False,
+                    'error': f'File with ID {file_id} not found. Please upload a file first.'
+                }), 404
         user_answers = file_info.get('user_answers', {})
         
         # Load the dataset
-        import pandas as pd
-        df = pd.read_csv(file_path)
-        
-        # Try to get target column from user answers or auto-detect
-        target_column = None
-        
-        # Check if this is a clustering model (no target column needed)
-        clustering_models = ['kmeans', 'dbscan', 'hierarchical clustering', 'gaussian mixture']
-        is_clustering = any(cluster_model in model_name.lower() for cluster_model in clustering_models)
-        
-        if is_clustering:
-            # For clustering, use any column as dummy target (the algorithm will ignore it)
-            target_column = df.columns[0]
-            print(f"Clustering model detected - using dummy target: {target_column}")
-        elif 'target_column' in user_answers:
-            target_column = user_answers['target_column']
-        else:
-            # Auto-detect: assume last column is target for classification/regression
-            target_column = df.columns[-1]
-        
-        # Use advanced training system
-        print(f"🚀 Starting advanced training for model: {model_name}")
-        print(f"📂 File path: {file_path}")
-        print(f"📊 File ID: {file_id}")
-        print(f"📄 Original filename: {file_info.get('original_filename', 'Unknown')}")
-        
-        # Load and validate dataset
         import pandas as pd
         try:
             df = pd.read_csv(file_path)
@@ -486,27 +584,49 @@ def start_training():
                 'success': False,
                 'error': f'Failed to load dataset: {str(e)}'
             }), 500
-
-        user_answers = file_info.get('user_answers', {})
         
-        # Try to get target column from user answers or auto-detect
+        # Determine if this is unlabeled data
+        is_unlabeled = user_answers.get('is_labeled', '').lower() == 'unlabeled'
+        
+        # Check if this is a clustering model
+        clustering_models = ['kmeans', 'dbscan', 'hierarchical clustering', 'gaussian mixture', 'gmm']
+        is_clustering_model = any(cluster_model in model_name.lower() for cluster_model in clustering_models)
+        
+        # Determine target column based on data type
         target_column = None
-        
-        # Check if this is a clustering model (no target column needed)
-        clustering_models = ['kmeans', 'dbscan', 'hierarchical clustering', 'gaussian mixture']
-        is_clustering = any(cluster_model in model_name.lower() for cluster_model in clustering_models)
-        
-        if is_clustering:
-            # For clustering, use any column as dummy target (the algorithm will ignore it)
-            target_column = df.columns[0]
-            print(f"Clustering model detected - using dummy target: {target_column}")
-        elif 'target_column' in user_answers:
-            target_column = user_answers['target_column']
+        if is_unlabeled or is_clustering_model:
+            # For unlabeled/clustering data, NO target column
+            print(f"🔍 Unlabeled/clustering data detected - no target column needed")
+            target_column = None
         else:
-            # Auto-detect: assume last column is target for classification/regression
-            target_column = df.columns[-1]
+            # For labeled data, get target column from user answers
+            if user_answers.get('is_labeled', '').lower() == 'labeled':
+                if 'target_column' in user_answers and user_answers['target_column']:
+                    target_column = user_answers['target_column']
+                    if target_column not in df.columns:
+                        return jsonify({
+                            'success': False,
+                            'error': f'Target column "{target_column}" not found in dataset. Available columns: {list(df.columns)}',
+                            'available_columns': list(df.columns)
+                        }), 400
+                else:
+                    # Return available columns for user selection
+                    return jsonify({
+                        'success': False,
+                        'error': 'Target attribute not specified. Please select the target column.',
+                        'available_columns': list(df.columns)
+                    }), 400
+            else:
+                # Fallback: assume last column is target (shouldn't happen for labeled data)
+                target_column = df.columns[-1]
+                print(f"⚠️ Warning: Assuming last column as target: {target_column}")
         
-        print(f"🎯 Target column: {target_column}")
+        print(f"🚀 Starting training for model: {model_name}")
+        print(f"📂 File path: {file_path}")
+        print(f"📊 File ID: {file_id}")
+        print(f"📄 Original filename: {file_info.get('original_filename', 'Unknown')}")
+        print(f"🎯 Target column: {target_column if target_column else 'None (Unsupervised)'}")
+        print(f"🔍 Is unlabeled: {is_unlabeled}, Is clustering model: {is_clustering_model}")
         
         # Train the model using comprehensive preprocessing pipeline
         print(f"\n{'='*100}")
@@ -535,6 +655,8 @@ def start_training():
         
         # Get feature information from the training result
         feature_info = {}
+        is_unsupervised = result.get('performance', {}).get('model_type') == 'unsupervised' or is_unlabeled or is_clustering_model
+        
         if result.get('success') and result.get('model_info'):
             model_info = result['model_info']
             model_dir = model_info.get('model_directory', '')
@@ -549,50 +671,180 @@ def start_training():
                             feature_data = json.load(f)
                         feature_info = {
                             'feature_names': feature_data.get('feature_names', []),
-                            'target_column': feature_data.get('target_column', target_column),
-                            'problem_type': result.get('performance', {}).get('model_type', 'classification')
+                            'target_column': feature_data.get('target_column', target_column) if target_column else None,
+                            'problem_type': result.get('performance', {}).get('model_type', 'unsupervised' if is_unsupervised else 'classification')
                         }
                         print(f"📊 Feature info loaded from artifacts: {len(feature_info.get('feature_names', []))} features")
                     else:
                         raise FileNotFoundError(f"Feature info file not found: {feature_info_path}")
             except Exception as e:
                 print(f"⚠️ Could not load feature info from artifacts: {e}")
-                # Fallback: extract feature names from the dataset
+                # Try to get feature names from result first (these are the actual features used)
+                if result.get('feature_names'):
+                    feature_names = result['feature_names']
+                    print(f"📊 Feature names from result: {feature_names}")
+                elif result.get('training_details', {}).get('feature_names'):
+                    feature_names = result['training_details']['feature_names']
+                    print(f"📊 Feature names from training_details: {feature_names}")
+                elif result.get('feature_info', {}).get('feature_names'):
+                    feature_names = result['feature_info']['feature_names']
+                    print(f"📊 Feature names from feature_info: {feature_names}")
+                elif result.get('model_info', {}).get('feature_names'):
+                    feature_names = result['model_info']['feature_names']
+                    print(f"📊 Feature names from model_info: {feature_names}")
+                else:
+                    # Fallback: extract feature names from the dataset
+                    try:
+                        import pandas as pd
+                        temp_df = pd.read_csv(file_path)
+                        if is_unsupervised:
+                            # For unsupervised, exclude ID columns (same logic as in training)
+                            id_patterns = ['id', 'customerid', 'userid', 'user_id', 'customer_id', 'index', 'idx']
+                            feature_names = []
+                            for col in temp_df.columns:
+                                col_lower = col.lower().strip()
+                                if any(pattern in col_lower for pattern in id_patterns):
+                                    unique_ratio = temp_df[col].nunique() / len(temp_df)
+                                    if unique_ratio > 0.95:  # Exclude unique identifiers
+                                        continue
+                                feature_names.append(col)
+                        else:
+                            # For supervised, exclude target column
+                            feature_names = [col for col in temp_df.columns if col != target_column] if target_column else list(temp_df.columns)
+                        
+                        print(f"📊 Feature names extracted from dataset: {feature_names}")
+                    except Exception as inner_e:
+                        print(f"❌ Could not extract features from dataset: {inner_e}")
+                        feature_names = []
+                
+                # Get numeric and categorical columns from result or metadata
+                numeric_cols = result.get('numeric_cols', result.get('training_details', {}).get('numeric_cols', []))
+                categorical_cols = result.get('categorical_cols', result.get('training_details', {}).get('categorical_cols', []))
+                
+                feature_info = {
+                    'feature_names': feature_names,
+                    'target_column': target_column if not is_unsupervised else None,
+                    'problem_type': 'unsupervised' if is_unsupervised else result.get('performance', {}).get('model_type', 'classification'),
+                    'numeric_cols': numeric_cols,
+                    'categorical_cols': categorical_cols
+                }
+                print(f"📊 Final feature info: {len(feature_names)} features - {feature_names}")
+                print(f"📊 Numeric cols: {numeric_cols}")
+                print(f"📊 Categorical cols: {categorical_cols}")
+        else:
+            # Training failed or no model_info, fallback to dataset
+            # Try to get feature names from result first
+            if result.get('feature_names'):
+                feature_names = result['feature_names']
+            elif result.get('training_details', {}).get('feature_names'):
+                feature_names = result['training_details']['feature_names']
+            elif result.get('feature_info', {}).get('feature_names'):
+                feature_names = result['feature_info']['feature_names']
+            else:
                 try:
                     import pandas as pd
                     temp_df = pd.read_csv(file_path)
-                    feature_names = [col for col in temp_df.columns if col != target_column]
-                    feature_info = {
-                        'feature_names': feature_names,
-                        'target_column': target_column,
-                        'problem_type': result.get('performance', {}).get('model_type', 'classification')
-                    }
-                    print(f"📊 Feature info from dataset: {len(feature_names)} features")
-                except Exception as inner_e:
-                    print(f"❌ Could not extract features: {inner_e}")
-                    feature_info = {'feature_names': [], 'target_column': target_column, 'problem_type': 'classification'}
-        else:
-            # Training failed or no model_info, fallback to dataset
-            try:
-                import pandas as pd
-                temp_df = pd.read_csv(file_path)
-                feature_names = [col for col in temp_df.columns if col != target_column]
-                feature_info = {
-                    'feature_names': feature_names,
-                    'target_column': target_column,
-                    'problem_type': 'classification'
+                    if is_unsupervised:
+                        # For unsupervised, exclude ID columns (same logic as in training)
+                        id_patterns = ['id', 'customerid', 'userid', 'user_id', 'customer_id', 'index', 'idx']
+                        feature_names = []
+                        for col in temp_df.columns:
+                            col_lower = col.lower().strip()
+                            if any(pattern in col_lower for pattern in id_patterns):
+                                unique_ratio = temp_df[col].nunique() / len(temp_df)
+                                if unique_ratio > 0.95:  # Exclude unique identifiers
+                                    continue
+                            feature_names.append(col)
+                    else:
+                        # For supervised, exclude target column
+                        feature_names = [col for col in temp_df.columns if col != target_column] if target_column else list(temp_df.columns)
+                except Exception as e:
+                    print(f"❌ Could not extract features from dataset: {e}")
+                    feature_names = []
+            
+            # Get numeric and categorical columns from result if available
+            numeric_cols = result.get('numeric_cols', result.get('training_details', {}).get('numeric_cols', []))
+            categorical_cols = result.get('categorical_cols', result.get('training_details', {}).get('categorical_cols', []))
+            
+            feature_info = {
+                'feature_names': feature_names,
+                'target_column': target_column if not is_unsupervised else None,
+                'problem_type': 'unsupervised' if is_unsupervised else 'classification',
+                'numeric_cols': numeric_cols,
+                'categorical_cols': categorical_cols
+            }
+            print(f"📊 Feature info (fallback): {len(feature_names)} features - {feature_names}")
+            print(f"📊 Numeric cols (fallback): {numeric_cols}")
+            print(f"📊 Categorical cols (fallback): {categorical_cols}")
+        
+        # Format response to match frontend expectations
+        is_unsupervised_result = result.get('performance', {}).get('model_type') == 'unsupervised' or is_unlabeled or is_clustering_model
+        
+        if result.get('success'):
+            # Get original training_details from result if it exists
+            original_training_details = result.get('training_details', {})
+            
+            # Get feature names from multiple possible sources
+            feature_names_from_result = (
+                result.get('feature_names') or
+                result.get('training_details', {}).get('feature_names') or
+                result.get('feature_info', {}).get('feature_names') or
+                result.get('model_info', {}).get('feature_names') or
+                feature_info.get('feature_names')
+            )
+            
+            # Format the result to match TrainingResponse interface
+            formatted_result = {
+                'success': True,
+                'model_name': result.get('model_info', {}).get('name', model_name),
+                'model_folder': result.get('model_info', {}).get('model_directory', ''),
+                'main_score': result.get('performance', {}).get('main_score', result.get('performance', {}).get('silhouette_score', 0.5)),
+                'score_name': result.get('performance', {}).get('score_name', 'accuracy' if not is_unsupervised_result else 'silhouette_score'),
+                'problem_type': result.get('performance', {}).get('model_type', 'unsupervised' if is_unsupervised_result else 'classification'),
+                'threshold_met': result.get('performance', {}).get('silhouette_score', 0) > 0.3 if is_unsupervised_result else result.get('threshold_met', False),
+                'performance': result.get('performance', {}),
+                'model_info': result.get('model_info', {}),
+                'training_details': {
+                    # Preserve original training_details (includes feature_names)
+                    **original_training_details,
+                    # Override with performance data if not present
+                    'training_samples': original_training_details.get('training_samples', result.get('performance', {}).get('n_samples', 0)),
+                    'features': original_training_details.get('features', result.get('performance', {}).get('n_features', 0)),
+                    'training_time': original_training_details.get('training_time', result.get('performance', {}).get('training_time', 0)),
+                    # Ensure feature_names are included
+                    'feature_names': feature_names_from_result or original_training_details.get('feature_names', [])
                 }
-            except Exception as e:
-                print(f"❌ Could not extract features from dataset: {e}")
-                feature_info = {'feature_names': [], 'target_column': target_column, 'problem_type': 'classification'}
+            }
+            
+            # Update feature_info with names from result if available
+            if feature_names_from_result:
+                feature_info['feature_names'] = feature_names_from_result
+            
+            # Ensure feature_info includes numeric and categorical columns
+            if 'numeric_cols' not in feature_info:
+                feature_info['numeric_cols'] = result.get('numeric_cols', result.get('training_details', {}).get('numeric_cols', []))
+            if 'categorical_cols' not in feature_info:
+                feature_info['categorical_cols'] = result.get('categorical_cols', result.get('training_details', {}).get('categorical_cols', []))
+            
+            print(f"📊 Formatted result training_details.feature_names: {formatted_result['training_details'].get('feature_names', 'NOT FOUND')}")
+            print(f"📊 Feature info feature_names: {feature_info.get('feature_names', 'NOT FOUND')}")
+            print(f"📊 Result feature_names: {result.get('feature_names', 'NOT FOUND')}")
+            print(f"📊 Result training_details.feature_names: {result.get('training_details', {}).get('feature_names', 'NOT FOUND')}")
+            
+            # Add clustering-specific info if unsupervised
+            if is_unsupervised_result:
+                formatted_result['performance']['n_clusters'] = result.get('performance', {}).get('n_clusters')
+                formatted_result['performance']['cluster_distribution'] = result.get('performance', {}).get('cluster_distribution', {})
+        else:
+            formatted_result = result
         
         return jsonify({
             'success': True,
             'file_id': file_id,
             'model_name': model_name,
-            'result': result,
+            'result': formatted_result,
             'feature_info': feature_info,
-            'message': 'Training completed successfully with comprehensive preprocessing!'
+            'message': 'Training completed successfully!' + (' (Unsupervised)' if is_unsupervised_result else '')
         })
     
     except Exception as e:
@@ -1302,15 +1554,45 @@ def make_prediction():
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
         
-        feature_names = metadata.get('feature_names', [])
-        target_column = metadata.get('target_column', 'target')
+        # Get feature names from metadata (may be nested in performance or at top level)
+        feature_names = (
+            metadata.get('feature_names') or
+            metadata.get('performance', {}).get('feature_names') or
+            []
+        )
+        
+        # For unsupervised models, try to get feature names from the model directory
+        if not feature_names and metadata.get('model_type') == 'unsupervised':
+            # Try to load from feature_info file if it exists
+            feature_info_files = glob.glob(os.path.join(model_folder, 'feature_info_*.json'))
+            if feature_info_files:
+                feature_info_files.sort(reverse=True)
+                try:
+                    with open(feature_info_files[0], 'r') as f:
+                        feature_info = json.load(f)
+                        feature_names = feature_info.get('feature_names', [])
+                        print(f"📊 Loaded feature names from feature_info: {feature_names}")
+                except Exception as e:
+                    print(f"⚠️ Could not load feature_info: {e}")
+        
+        target_column = metadata.get('target_column')
         problem_type = metadata.get('model_type', metadata.get('problem_type', 'regression'))
+        
+        # For unsupervised models, target_column is None, so use all features
+        if problem_type == 'unsupervised' or target_column is None:
+            features_for_prediction = feature_names
+        else:
+            # For supervised models, exclude target column
+            features_for_prediction = [f for f in feature_names if f != target_column]
+        
+        print(f"📊 Feature names from metadata: {feature_names}")
+        print(f"📊 Features for prediction: {features_for_prediction}")
+        print(f"📊 Target column: {target_column}")
+        print(f"📊 Problem type: {problem_type}")
         
         # Now map features array to proper feature names if needed
         if 'features' in data and input_data is None:
             features_array = data.get('features', [])
-            # Get features excluding target column for prediction
-            features_for_prediction = [f for f in feature_names if f != target_column]
             
             if len(features_array) != len(features_for_prediction):
                 print(f"⚠️  Feature count mismatch: received {len(features_array)}, expected {len(features_for_prediction)}")
@@ -1333,28 +1615,74 @@ def make_prediction():
         import numpy as np
         
         # Create DataFrame from input data with proper feature names
-        input_df = pd.DataFrame([input_data])
+        # First, ensure we have all required features in the correct order
+        if problem_type == 'unsupervised' or target_column is None:
+            features_for_prediction = feature_names
+        else:
+            features_for_prediction = [f for f in feature_names if f != target_column]
         
-        # Get features for prediction (excluding target)
-        features_for_prediction = [f for f in feature_names if f != target_column]
-        
-        # Ensure all required features are present
+        # Build input_data dict with all features in correct order
+        ordered_input_data = {}
         for feature in features_for_prediction:
-            if feature not in input_df.columns:
+            if feature in input_data:
+                ordered_input_data[feature] = input_data[feature]
+            else:
                 print(f"⚠️  Missing feature '{feature}', setting to 0")
-                input_df[feature] = 0
+                ordered_input_data[feature] = 0
         
-        # Select and order features correctly (excluding target column)
-        input_df = input_df[features_for_prediction]
+        # Create DataFrame with features in the correct order
+        input_df = pd.DataFrame([ordered_input_data])
+        
+        # Get categorical and numeric columns from metadata
+        categorical_cols_meta = metadata.get('categorical_cols', [])
+        numeric_cols_meta = metadata.get('numeric_cols', [])
+        
+        # FIRST: Ensure categorical columns are treated as strings (for proper encoding)
+        # This must happen BEFORE numeric conversion to prevent overwriting
+        if problem_type == 'unsupervised':
+            for col in categorical_cols_meta:
+                if col in input_df.columns:
+                    # Keep as string - don't convert to numeric
+                    input_df[col] = input_df[col].astype(str)
+                    print(f"   ✓ Converted {col} to string for categorical encoding (value: '{input_df[col].iloc[0]}')")
+        
+        # THEN: Ensure numeric columns are numeric (only for non-categorical columns)
+        for col in numeric_cols_meta:
+            if col in input_df.columns and col not in categorical_cols_meta:
+                input_df[col] = pd.to_numeric(input_df[col], errors='coerce')
+                # Fill NaN with 0 if conversion failed
+                if input_df[col].isna().any():
+                    input_df[col] = input_df[col].fillna(0)
+                    print(f"   ⚠️  Converted {col} to numeric (filled NaN with 0)")
         
         print(f"🔄 Input data shape: {input_df.shape}")
         print(f"🔄 Input features: {list(input_df.columns)}")
+        print(f"🔄 Input data values: {input_df.iloc[0].to_dict()}")
+        print(f"🔄 Input data types: {input_df.dtypes.to_dict()}")
         
         # Use direct model loading (bypass advanced_model_trainer for compatibility)
         try:
             # Load the pipeline model directly - check for multiple possible filenames
-            model_files = glob.glob(os.path.join(model_folder, 'model_*.joblib'))
-            print(f"🔍 Found model files: {model_files}")
+            # Exclude preprocessing files (scaler, imputer, encoders, etc.)
+            exclude_patterns = ['scaler', 'imputer', 'encoder', 'feature_info', 'metadata', 'transformed_data']
+            
+            # Pattern 1: model_*.joblib (supervised models)
+            model_files = [f for f in glob.glob(os.path.join(model_folder, 'model_*.joblib')) 
+                          if not any(pattern in os.path.basename(f).lower() for pattern in exclude_patterns)]
+            
+            # Pattern 2: *model*.joblib (unsupervised models, e.g., kmeans_*.joblib, gaussian_mixture_model_(gmm)_*.joblib)
+            if not model_files:
+                all_files = glob.glob(os.path.join(model_folder, '*model*.joblib'))
+                model_files = [f for f in all_files 
+                              if not any(pattern in os.path.basename(f).lower() for pattern in exclude_patterns)]
+            
+            # Pattern 3: Any .joblib file that's not a preprocessing artifact
+            if not model_files:
+                all_files = glob.glob(os.path.join(model_folder, '*.joblib'))
+                model_files = [f for f in all_files 
+                              if not any(pattern in os.path.basename(f).lower() for pattern in exclude_patterns)]
+            
+            print(f"🔍 Found model files (excluding preprocessing): {model_files}")
             
             if not model_files:
                 # Fallback to old format
@@ -1370,29 +1698,131 @@ def make_prediction():
                             'error': 'Model file not found. Model may be corrupted.'
                         }), 500
             else:
-                # Use the most recent model file
-                model_files.sort(reverse=True)
+                # Use the most recent model file (by modification time)
+                model_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
                 model_path = model_files[0]
+                print(f"📁 Selected model file: {os.path.basename(model_path)}")
             
             print(f"📁 Loading model from: {model_path}")
             
-            # Load the trained pipeline
+            # Load the trained model
             import joblib
-            pipeline = joblib.load(model_path)
+            model = joblib.load(model_path)
             
-            print(f"✅ Pipeline loaded successfully: {type(pipeline)}")
-            print(f"📊 Pipeline steps: {getattr(pipeline, 'steps', 'N/A')}")
+            print(f"✅ Model loaded successfully: {type(model)}")
             
-            # Debug input data shape and content
-            print(f"📥 Input DataFrame:")
-            print(input_df.head())
-            print(f"📊 Input shape: {input_df.shape}")
-            print(f"🔧 Input dtypes: {input_df.dtypes.to_dict()}")
-            
-            # Make prediction using the pipeline directly
-            print("🔮 Making prediction...")
-            predictions = pipeline.predict(input_df)
-            prediction = predictions[0] if len(predictions) > 0 else 0
+            # For unsupervised models, we need to apply preprocessing using saved transformers
+            if problem_type == 'unsupervised':
+                print("🔧 Applying preprocessing for unsupervised model using saved transformers...")
+                
+                # Load preprocessing transformers from metadata
+                preprocessing_artifacts = metadata.get('preprocessing_artifacts', {})
+                numeric_cols = metadata.get('numeric_cols', [])
+                categorical_cols = metadata.get('categorical_cols', [])
+                
+                # Create a copy for preprocessing
+                X_pred = input_df.copy()
+                
+                print(f"🔧 BEFORE PREPROCESSING:")
+                print(f"   Input values: {X_pred.iloc[0].to_dict()}")
+                
+                # Load and apply numeric imputer if available
+                if preprocessing_artifacts.get('numeric_imputer'):
+                    imputer_path = os.path.join(model_folder, preprocessing_artifacts['numeric_imputer'])
+                    if os.path.exists(imputer_path):
+                        numeric_imputer = joblib.load(imputer_path)
+                        if numeric_cols:
+                            # Only impute numeric columns that exist
+                            numeric_cols_to_impute = [col for col in numeric_cols if col in X_pred.columns]
+                            if numeric_cols_to_impute:
+                                # Use .loc to ensure proper assignment
+                                imputed_values = numeric_imputer.transform(X_pred[numeric_cols_to_impute])
+                                for idx, col in enumerate(numeric_cols_to_impute):
+                                    X_pred.loc[:, col] = imputed_values[:, idx]
+                                print(f"   ✓ Applied numeric imputation to {numeric_cols_to_impute}")
+                                print(f"   After imputation: {X_pred[numeric_cols_to_impute].iloc[0].to_dict()}")
+                
+                # Load and apply label encoders for categorical columns
+                if preprocessing_artifacts.get('label_encoders'):
+                    encoders_path = os.path.join(model_folder, preprocessing_artifacts['label_encoders'])
+                    if os.path.exists(encoders_path):
+                        label_encoders = joblib.load(encoders_path)
+                        for col in categorical_cols:
+                            if col in X_pred.columns and col in label_encoders:
+                                le = label_encoders[col]
+                                # Handle unseen values by using the first class
+                                try:
+                                    original_value = str(X_pred[col].iloc[0])
+                                    encoded_values = le.transform(X_pred[col].astype(str))
+                                    X_pred.loc[:, col] = encoded_values
+                                    print(f"   ✓ Encoded {col}: '{original_value}' -> {encoded_values[0]}")
+                                except ValueError as e:
+                                    # Unseen value, use first class as default
+                                    default_value = le.transform([le.classes_[0]])[0]
+                                    X_pred.loc[:, col] = default_value
+                                    print(f"   ⚠️  Unseen value in {col}, using default: {default_value}")
+                
+                # Load and apply scaler for numeric columns
+                if preprocessing_artifacts.get('scaler') and numeric_cols:
+                    scaler_path = os.path.join(model_folder, preprocessing_artifacts['scaler'])
+                    if os.path.exists(scaler_path):
+                        scaler = joblib.load(scaler_path)
+                        # Only scale numeric columns that exist
+                        numeric_cols_to_scale = [col for col in numeric_cols if col in X_pred.columns]
+                        if numeric_cols_to_scale:
+                            print(f"   Before scaling: {X_pred[numeric_cols_to_scale].iloc[0].to_dict()}")
+                            # Use .loc to ensure proper assignment
+                            scaled_values = scaler.transform(X_pred[numeric_cols_to_scale])
+                            for idx, col in enumerate(numeric_cols_to_scale):
+                                X_pred.loc[:, col] = scaled_values[:, idx]
+                            print(f"   ✓ Scaled {len(numeric_cols_to_scale)} numeric columns using saved scaler")
+                            print(f"   After scaling: {X_pred[numeric_cols_to_scale].iloc[0].to_dict()}")
+                
+                # Ensure columns are in the correct order (matching training)
+                X_pred = X_pred[feature_names]  # Reorder to match training order
+                
+                # Convert to numpy array for prediction
+                X_array = X_pred.values if hasattr(X_pred, 'values') else X_pred
+                print(f"📊 Preprocessed input shape: {X_array.shape}")
+                print(f"📊 Preprocessed input array: {X_array[0] if len(X_array) > 0 else 'N/A'}")
+                print(f"📊 Preprocessed feature values: {dict(zip(feature_names, X_array[0])) if len(X_array) > 0 else 'N/A'}")
+                
+                # Make prediction (cluster assignment for unsupervised)
+                print("🔮 Making cluster prediction...")
+                predictions = model.predict(X_array)
+                cluster_id = int(predictions[0]) if len(predictions) > 0 else 0
+                
+                # Get cluster distribution for user-friendly output
+                performance_data = metadata.get('performance', {})
+                cluster_distribution = performance_data.get('cluster_distribution', {})
+                cluster_size = cluster_distribution.get(str(cluster_id), 0)
+                total_samples = performance_data.get('n_samples', metadata.get('n_samples', 0))
+                cluster_percentage = (cluster_size / total_samples * 100) if total_samples > 0 else 0
+                
+                # Format user-friendly prediction
+                prediction = f"Cluster {cluster_id}"
+                cluster_prediction = {
+                    'cluster_id': cluster_id,
+                    'cluster_label': f"Cluster {cluster_id}",
+                    'cluster_size': cluster_size,
+                    'cluster_percentage': round(cluster_percentage, 2),
+                    'total_samples': total_samples
+                }
+                
+                print(f"✅ Cluster assignment: {prediction} ({cluster_size} samples, {cluster_percentage:.1f}%)")
+            else:
+                # For supervised models, check if it's a pipeline
+                if hasattr(model, 'predict') and hasattr(model, 'steps'):
+                    # It's a pipeline
+                    print(f"📊 Pipeline steps: {getattr(model, 'steps', 'N/A')}")
+                    predictions = model.predict(input_df)
+                elif hasattr(model, 'predict'):
+                    # It's a model, apply preprocessing if needed
+                    predictions = model.predict(input_df.values)
+                else:
+                    raise ValueError("Model does not have predict method")
+                
+                prediction = predictions[0] if len(predictions) > 0 else 0
             
             print(f"✅ Prediction result: {prediction}")
             print(f"✅ Prediction type: {type(prediction)}")
@@ -1408,20 +1838,28 @@ def make_prediction():
                 'debug_info': full_error
             }), 500
         
-        # For classification, prediction is already the class label
-        # For regression, prediction is the numerical value
-        prediction_decoded = prediction
+        # Format prediction for user-friendly display
+        if problem_type == 'unsupervised' and 'cluster_prediction' in locals():
+            # For clustering, use the cluster prediction details
+            prediction_display = f"{cluster_prediction.get('cluster_label', f'Cluster {prediction}')} ({cluster_prediction.get('cluster_percentage', 0):.1f}% of data)"
+            prediction_decoded = prediction_display
+        else:
+            # For supervised models, use the prediction as-is
+            prediction_decoded = str(prediction)
+            cluster_prediction = None
         
         return jsonify({
             'success': True,
-            'prediction': str(prediction_decoded),
-            'raw_prediction': float(prediction) if isinstance(prediction, (int, float, np.number)) else str(prediction),
+            'prediction': prediction_decoded,
+            'raw_prediction': float(prediction) if isinstance(prediction, (int, float, np.number)) and problem_type != 'unsupervised' else str(prediction),
+            'cluster_info': cluster_prediction if problem_type == 'unsupervised' else None,  # Include cluster details for unsupervised
             'confidence': None,  # Confidence not available in new system yet
             'probabilities': None,  # Probabilities not available in new system yet
             'model_info': {
                 'model_name': metadata.get('model_name', 'Unknown'),
                 'training_date': metadata.get('timestamp', ''),
-                'accuracy': metadata.get('test_score', metadata.get('performance', {}).get('accuracy', metadata.get('performance', {}).get('r2_score', 0)))
+                'accuracy': metadata.get('test_score', metadata.get('performance', {}).get('accuracy', metadata.get('performance', {}).get('r2_score', 0))),
+                'problem_type': problem_type
             },
             'input_data': input_data,
             'feature_info': {

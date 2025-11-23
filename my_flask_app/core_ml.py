@@ -693,23 +693,74 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             print("≡ƒÄ» STEP 3: IDENTIFYING TARGET AND FEATURES")
             print(f"{'='*80}")
             
-            if target_column is None:
-                target_column = df.columns[-1]
-                print(f"Γä╣∩╕Å  No target column specified, using last column as default")
+            # Check if this is unlabeled data (clustering)
+            # Handle both string and boolean values
+            is_labeled_value = user_data.get('is_labeled', 'labeled')
+            is_labeled = (
+                is_labeled_value in ['labeled', 'true', True] or 
+                (isinstance(is_labeled_value, bool) and is_labeled_value)
+            )
+            is_clustering = (
+                is_labeled_value in ['unlabeled', 'false', False] or 
+                (isinstance(is_labeled_value, bool) and not is_labeled_value) or
+                not is_labeled
+            )
             
-            print(f"≡ƒÄ» Target column: {target_column}")
-            print(f"≡ƒôè Target data type: {df[target_column].dtype}")
-            print(f"≡ƒôè Unique target values: {df[target_column].nunique()}")
-            print(f"≡ƒôè Target value distribution:")
-            print(df[target_column].value_counts().head(10))
+            # Check if model is a clustering model
+            clustering_models = ['kmeans', 'dbscan', 'hierarchical clustering', 'gaussian mixture', 'gmm']
+            model_name_lower = model_name.lower()
+            is_clustering_model = any(cluster_model in model_name_lower for cluster_model in clustering_models)
             
-            # Separate features and target
-            X = df.drop(columns=[target_column])
-            y = df[target_column]
-            
-            print(f"\n≡ƒôè Feature columns ({len(X.columns)}):")
-            for i, col in enumerate(X.columns, 1):
-                print(f"   {i}. {col} ({X[col].dtype})")
+            # If unlabeled or clustering model, use all columns as features (excluding unique identifiers)
+            if is_clustering or is_clustering_model:
+                print(f"≡ƒÄ» Unlabeled data detected - using columns as features (clustering)")
+                X = df.copy()
+                
+                # Exclude unique identifier columns (ID, customerid, etc.)
+                id_patterns = ['id', 'customerid', 'userid', 'user_id', 'customer_id', 'index', 'idx']
+                columns_to_exclude = []
+                for col in X.columns:
+                    col_lower = col.lower().strip()
+                    # Check if column name matches ID patterns
+                    if any(pattern in col_lower for pattern in id_patterns):
+                        # Also check if it's a unique identifier (all values are unique or nearly unique)
+                        unique_ratio = X[col].nunique() / len(X)
+                        if unique_ratio > 0.95:  # More than 95% unique values
+                            columns_to_exclude.append(col)
+                            print(f"   ⚠️ Excluding unique identifier column: {col} ({unique_ratio*100:.1f}% unique values)")
+                
+                if columns_to_exclude:
+                    X = X.drop(columns=columns_to_exclude)
+                    print(f"   ✅ Excluded {len(columns_to_exclude)} unique identifier column(s)")
+                
+                y = None
+                target_column = None
+                print(f"\n≡ƒôè Feature columns ({len(X.columns)}):")
+                for i, col in enumerate(X.columns, 1):
+                    print(f"   {i}. {col} ({X[col].dtype})")
+            else:
+                # Labeled data - need target column
+                if target_column is None:
+                    target_column = df.columns[-1]
+                    print(f"Γä╣∩╕Å  No target column specified, using last column as default")
+                
+                # Validate target column exists
+                if target_column not in df.columns:
+                    raise ValueError(f"Target column '{target_column}' not found in dataset. Available columns: {list(df.columns)}")
+                
+                print(f"≡ƒÄ» Target column: {target_column}")
+                print(f"≡ƒôè Target data type: {df[target_column].dtype}")
+                print(f"≡ƒôè Unique target values: {df[target_column].nunique()}")
+                print(f"≡ƒôè Target value distribution:")
+                print(df[target_column].value_counts().head(10))
+                
+                # Separate features and target
+                X = df.drop(columns=[target_column])
+                y = df[target_column]
+                
+                print(f"\n≡ƒôè Feature columns ({len(X.columns)}):")
+                for i, col in enumerate(X.columns, 1):
+                    print(f"   {i}. {col} ({X[col].dtype})")
             
             # ============================================================================
             # STEP 4: DATA PREPROCESSING
@@ -760,7 +811,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             print(f"{'-'*80}")
             original_rows = len(X)
             X = X.drop_duplicates()
-            y = y[X.index]
+            if y is not None:
+                y = y[X.index]
             duplicates_removed = original_rows - len(X)
             if duplicates_removed > 0:
                 print(f"≡ƒùæ∩╕Å  Removed {duplicates_removed} duplicate rows")
@@ -786,30 +838,35 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             else:
                 print(f"Γä╣∩╕Å  No categorical columns to encode")
             
-            # 4.4: Handle target encoding for classification
+            # 4.4: Handle target encoding for classification (only for labeled data)
             print(f"\n≡ƒöº Step 4.4: Processing Target Variable")
             print(f"{'-'*80}")
             
-            is_labeled = user_data.get('is_labeled', 'labeled') in ['labeled', 'true', True]
-            data_type = user_data.get('data_type', '')
-            is_classification = (data_type in ['categorical', 'classification'] or y.nunique() < 20)
-            
-            print(f"≡ƒöì Training mode detection:")
-            print(f"   - is_labeled: {is_labeled} (value: {user_data.get('is_labeled')})")
-            print(f"   - data_type: {data_type}")
-            print(f"   - is_classification: {is_classification}")
-            print(f"   - target unique values: {y.nunique()}")
-            
             target_encoder = None
-            if is_classification and y.dtype == 'object':
-                print(f"≡ƒöä Encoding target variable (classification)")
-                print(f"   Original unique values: {y.nunique()}")
-                print(f"   Sample values: {y.unique()[:5]}")
+            is_classification = False
+            
+            if y is not None:
+                is_labeled = user_data.get('is_labeled', 'labeled') in ['labeled', 'true', True]
+                data_type = user_data.get('data_type', '')
+                is_classification = (data_type in ['categorical', 'classification'] or y.nunique() < 20)
                 
-                target_encoder = LabelEncoder()
-                y = target_encoder.fit_transform(y.astype(str))
+                print(f"≡ƒöì Training mode detection:")
+                print(f"   - is_labeled: {is_labeled} (value: {user_data.get('is_labeled')})")
+                print(f"   - data_type: {data_type}")
+                print(f"   - is_classification: {is_classification}")
+                print(f"   - target unique values: {y.nunique()}")
                 
-                print(f"   Γ£à Encoded to: {np.unique(y)}")
+                if is_classification and y.dtype == 'object':
+                    print(f"≡ƒöä Encoding target variable (classification)")
+                    print(f"   Original unique values: {y.nunique()}")
+                    print(f"   Sample values: {y.unique()[:5]}")
+                    
+                    target_encoder = LabelEncoder()
+                    y = target_encoder.fit_transform(y.astype(str))
+                    
+                    print(f"   Γ£à Encoded to: {np.unique(y)}")
+            else:
+                print(f"Γä╣∩╕Å  No target variable (clustering/unlabeled data)")
             
             # 4.5: Feature scaling
             print(f"\n≡ƒöº Step 4.5: Feature Scaling")
@@ -852,29 +909,39 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                             print(f"   Γ£à {col}: No outliers detected")
             
             # ============================================================================
-            # STEP 5: TRAIN-TEST SPLIT
+            # STEP 5: TRAIN-TEST SPLIT (only for labeled data)
             # ============================================================================
             print(f"\n{'='*80}")
             print("Γ£é∩╕Å  STEP 5: SPLITTING DATA INTO TRAIN AND TEST SETS")
             print(f"{'='*80}")
             
-            test_size = 0.2
-            random_state = 42
-            
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=random_state, stratify=y if is_classification else None
-            )
-            
-            print(f"≡ƒôè Training set size: {X_train.shape[0]} samples ({(1-test_size)*100:.0f}%)")
-            print(f"≡ƒôè Test set size: {X_test.shape[0]} samples ({test_size*100:.0f}%)")
-            print(f"≡ƒôè Feature dimensions: {X_train.shape[1]}")
-            print(f"≡ƒôè Random state: {random_state}")
-            if is_classification:
-                print(f"≡ƒôè Stratified split: Yes (maintains class distribution)")
-                print(f"\n≡ƒôè Training set class distribution:")
-                print(pd.Series(y_train).value_counts())
-                print(f"\n≡ƒôè Test set class distribution:")
-                print(pd.Series(y_test).value_counts())
+            # For clustering/unlabeled data, skip train-test split
+            if y is None or is_clustering or is_clustering_model:
+                print(f"≡ƒöì Unlabeled/clustering data - using all data for training")
+                X_train = X
+                X_test = None
+                y_train = None
+                y_test = None
+                print(f"≡ƒôè Training set size: {X_train.shape[0]} samples (100%)")
+                print(f"≡ƒôè Feature dimensions: {X_train.shape[1]}")
+            else:
+                test_size = 0.2
+                random_state = 42
+                
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=test_size, random_state=random_state, stratify=y if is_classification else None
+                )
+                
+                print(f"≡ƒôè Training set size: {X_train.shape[0]} samples ({(1-test_size)*100:.0f}%)")
+                print(f"≡ƒôè Test set size: {X_test.shape[0]} samples ({test_size*100:.0f}%)")
+                print(f"≡ƒôè Feature dimensions: {X_train.shape[1]}")
+                print(f"≡ƒôè Random state: {random_state}")
+                if is_classification:
+                    print(f"≡ƒôè Stratified split: Yes (maintains class distribution)")
+                    print(f"\n≡ƒôè Training set class distribution:")
+                    print(pd.Series(y_train).value_counts())
+                    print(f"\n≡ƒôè Test set class distribution:")
+                    print(pd.Series(y_test).value_counts())
             
             # ============================================================================
             # STEP 6: MODEL SELECTION AND CONFIGURATION
@@ -891,10 +958,33 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             print(f"≡ƒöì DEBUG: model_name = {model_name}")
             
             # Get the specific model instance
-            if not is_labeled or 'cluster' in model_name.lower() or 'pca' in model_name.lower() or 'tsne' in model_name.lower() or 'umap' in model_name.lower():
+            # For unlabeled data, ALWAYS use unsupervised learning
+            # Also use unsupervised for clustering models even if labeled data is provided
+            should_use_unsupervised = (
+                is_clustering or  # Data is unlabeled
+                is_clustering_model or  # Model is a clustering model
+                y is None or  # No target variable
+                not is_labeled or  # Explicitly marked as unlabeled
+                'cluster' in model_name.lower() or  # Model name contains cluster
+                'kmeans' in model_name.lower() or  # KMeans
+                'dbscan' in model_name.lower() or  # DBSCAN
+                'gmm' in model_name.lower() or  # Gaussian Mixture
+                'gaussian mixture' in model_name.lower() or  # Gaussian Mixture
+                'pca' in model_name.lower() or  # PCA
+                'tsne' in model_name.lower() or  # t-SNE
+                't-sne' in model_name.lower() or  # t-SNE
+                'umap' in model_name.lower()  # UMAP
+            )
+            
+            if should_use_unsupervised:
                 print(f"≡ƒöì Unsupervised learning mode activated")
-                print(f"≡ƒöì DEBUG: Reason - not is_labeled={not is_labeled}, contains cluster/pca/tsne/umap={any(x in model_name.lower() for x in ['cluster', 'pca', 'tsne', 'umap'])}")
-                return self._train_unsupervised_model(X, model_name, model_dir)
+                print(f"≡ƒöì DEBUG: Reason - is_clustering={is_clustering}, is_clustering_model={is_clustering_model}, y is None={y is None}, not is_labeled={not is_labeled}")
+                print(f"≡ƒöì DEBUG: user_data['is_labeled']={user_data.get('is_labeled')}, model_name={model_name}")
+                # Store feature names before training (after ID exclusion)
+                feature_names = list(X.columns)
+                print(f"📊 Feature names to be used: {feature_names}")
+                result = self._train_unsupervised_model(X, model_name, model_dir)
+                return result
             else:
                 print(f"≡ƒÜÇ SWITCHING TO REALISTIC COMPREHENSIVE TRAINING")
                 print(f"{'='*80}")
@@ -1163,13 +1253,15 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
         Train an unsupervised learning model with detailed logging
         
         Args:
-            X (DataFrame): Feature dataset
+            X (DataFrame): Feature dataset (already preprocessed, IDs excluded)
             model_name (str): Name of the unsupervised model
             model_dir (str): Directory to save the model
             
         Returns:
-            dict: Training results
+            dict: Training results with feature_names included
         """
+        # Store feature names from the processed dataframe
+        feature_names = list(X.columns)
         try:
             import time
             
@@ -1190,20 +1282,86 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             print(f"≡ƒôè Training samples: {X.shape[0]}")
             print(f"≡ƒôè Features: {X.shape[1]}")
             
+            # Preprocess data BEFORE training (clustering models need numeric data)
+            from sklearn.preprocessing import StandardScaler, LabelEncoder
+            from sklearn.impute import SimpleImputer
+            
+            print(f"\n≡ƒöº Preprocessing data for clustering...")
+            X_processed = X.copy()
+            
+            # Store preprocessing transformers for later use in prediction
+            preprocessing_transformers = {
+                'numeric_imputer': None,
+                'scaler': None,
+                'label_encoders': {}
+            }
+            
+            # Handle missing values
+            numeric_cols = X_processed.select_dtypes(include=['int64', 'float64']).columns.tolist()
+            categorical_cols = X_processed.select_dtypes(include=['object', 'category']).columns.tolist()
+            
+            if len(numeric_cols) > 0:
+                # Impute missing numeric values
+                numeric_imputer = SimpleImputer(strategy='median')
+                X_processed[numeric_cols] = numeric_imputer.fit_transform(X_processed[numeric_cols])
+                preprocessing_transformers['numeric_imputer'] = numeric_imputer
+                
+                # Scale numeric columns
+                scaler = StandardScaler()
+                X_processed[numeric_cols] = scaler.fit_transform(X_processed[numeric_cols])
+                preprocessing_transformers['scaler'] = scaler
+                preprocessing_transformers['numeric_cols'] = numeric_cols
+                print(f"   ✓ Processed {len(numeric_cols)} numeric columns")
+            
+            if len(categorical_cols) > 0:
+                # Encode categorical columns
+                for col in categorical_cols:
+                    le = LabelEncoder()
+                    X_processed[col] = le.fit_transform(X_processed[col].astype(str))
+                    preprocessing_transformers['label_encoders'][col] = le
+                preprocessing_transformers['categorical_cols'] = categorical_cols
+                print(f"   ✓ Encoded {len(categorical_cols)} categorical columns")
+            
+            # Convert to numpy array for sklearn models
+            X_array = X_processed.values if hasattr(X_processed, 'values') else X_processed
+            
             training_start = time.time()
             
-            # Fit the model
+            # Fit the model on preprocessed data
             if hasattr(model, 'fit_transform'):
-                transformed_data = model.fit_transform(X)
-                labels = getattr(model, 'labels_', None)
+                transformed_data = model.fit_transform(X_array)
+                # Try to get labels from different attributes/methods
+                if hasattr(model, 'labels_'):
+                    labels = model.labels_
+                elif hasattr(model, 'predict'):
+                    labels = model.predict(X_array)
+                else:
+                    labels = None
             else:
-                model.fit(X)
+                model.fit(X_array)
                 transformed_data = None
-                labels = getattr(model, 'labels_', None)
+                # Try to get labels from different attributes/methods
+                if hasattr(model, 'labels_'):
+                    labels = model.labels_
+                elif hasattr(model, 'predict'):
+                    labels = model.predict(X_array)
+                else:
+                    labels = None
             
             training_time = time.time() - training_start
             
             print(f"Γ£à Training completed in {training_time:.2f} seconds")
+            
+            # Use processed data for evaluation
+            X_for_eval = X_array
+            
+            # Debug: Check if labels were obtained
+            print(f"🔍 DEBUG: labels is None: {labels is None}")
+            if labels is not None:
+                print(f"🔍 DEBUG: labels shape: {labels.shape}, unique labels: {np.unique(labels) if hasattr(np, 'unique') else 'N/A'}")
+            else:
+                print(f"⚠️ WARNING: No labels obtained from model. Model type: {type(model).__name__}")
+                print(f"   Model attributes: {[attr for attr in dir(model) if not attr.startswith('_')]}")
             
             # Performance evaluation
             performance = {
@@ -1217,20 +1375,62 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             # Add model-specific metrics
             if labels is not None:
                 unique_labels = np.unique(labels)
+                n_clusters = len(unique_labels)
+                
                 print(f"\n≡ƒôè Clustering Results:")
-                print(f"   Number of clusters: {len(unique_labels)}")
+                print(f"   Number of clusters: {n_clusters}")
                 print(f"   Cluster distribution:")
                 for label in unique_labels:
                     count = np.sum(labels == label)
                     percentage = (count / len(labels)) * 100
                     print(f"      Cluster {label}: {count} samples ({percentage:.2f}%)")
                 
-                performance['n_clusters'] = int(len(unique_labels))
+                performance['n_clusters'] = int(n_clusters)
                 performance['cluster_distribution'] = {str(k): int(v) for k, v in zip(*np.unique(labels, return_counts=True))}
+                
+                # Calculate clustering quality metrics
+                if n_clusters > 1 and n_clusters < len(X):
+                    try:
+                        from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+                        
+                        # X_for_eval is already a numpy array from preprocessing
+                        # Silhouette Score (higher is better, range: -1 to 1)
+                        silhouette_avg = silhouette_score(X_for_eval, labels)
+                        performance['silhouette_score'] = float(silhouette_avg)
+                        print(f"   Silhouette Score: {silhouette_avg:.4f}")
+                        
+                        # Davies-Bouldin Index (lower is better)
+                        db_score = davies_bouldin_score(X_for_eval, labels)
+                        performance['davies_bouldin_score'] = float(db_score)
+                        print(f"   Davies-Bouldin Index: {db_score:.4f}")
+                        
+                        # Calinski-Harabasz Index (higher is better)
+                        ch_score = calinski_harabasz_score(X_for_eval, labels)
+                        performance['calinski_harabasz_score'] = float(ch_score)
+                        print(f"   Calinski-Harabasz Index: {ch_score:.4f}")
+                        
+                        # For frontend compatibility, map silhouette score to a "main_score"
+                        # Silhouette score ranges from -1 to 1, normalize to 0-1 for display
+                        performance['main_score'] = float((silhouette_avg + 1) / 2)  # Normalize to 0-1
+                        performance['score_name'] = 'silhouette_score'
+                        
+                    except Exception as metric_err:
+                        print(f"⚠️ Could not calculate clustering metrics: {metric_err}")
+                        performance['main_score'] = 0.5  # Default score
+                        performance['score_name'] = 'n_clusters'
+                else:
+                    print(f"⚠️ Cannot calculate metrics: {n_clusters} clusters (need > 1 and < {len(X)})")
+                    performance['main_score'] = 0.5
+                    performance['score_name'] = 'n_clusters'
             
             if transformed_data is not None:
                 print(f"\n≡ƒôè Transformed data shape: {transformed_data.shape}")
                 performance['transformed_shape'] = list(transformed_data.shape)
+            
+            # Ensure main_score is set even if no labels
+            if 'main_score' not in performance:
+                performance['main_score'] = 0.5  # Default score
+                performance['score_name'] = 'unsupervised'
             
             # Save the model
             timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
@@ -1240,6 +1440,35 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             
             joblib.dump(model, model_path)
             print(f"\n≡ƒÆ╛ Model saved: {model_path}")
+            
+            # Save preprocessing transformers for prediction
+            if preprocessing_transformers.get('scaler') is not None:
+                scaler_path = os.path.join(model_dir, f"scaler_{timestamp}.joblib")
+                joblib.dump(preprocessing_transformers['scaler'], scaler_path)
+                print(f"≡ƒÆ╛ Scaler saved: {scaler_path}")
+            
+            if preprocessing_transformers.get('numeric_imputer') is not None:
+                imputer_path = os.path.join(model_dir, f"numeric_imputer_{timestamp}.joblib")
+                joblib.dump(preprocessing_transformers['numeric_imputer'], imputer_path)
+                print(f"≡ƒÆ╛ Numeric imputer saved: {imputer_path}")
+            
+            if preprocessing_transformers.get('label_encoders'):
+                encoders_path = os.path.join(model_dir, f"label_encoders_{timestamp}.joblib")
+                joblib.dump(preprocessing_transformers['label_encoders'], encoders_path)
+                print(f"≡ƒÆ╛ Label encoders saved: {encoders_path}")
+            
+            # Save feature info with column types
+            feature_info = {
+                'feature_names': feature_names,
+                'numeric_cols': preprocessing_transformers.get('numeric_cols', []),
+                'categorical_cols': preprocessing_transformers.get('categorical_cols', []),
+                'target_column': None,
+                'problem_type': 'unsupervised'
+            }
+            feature_info_path = os.path.join(model_dir, f"feature_info_{timestamp}.json")
+            with open(feature_info_path, 'w') as f:
+                json.dump(feature_info, f, indent=2)
+            print(f"≡ƒÆ╛ Feature info saved: {feature_info_path}")
             
             # Save transformed data if available
             if transformed_data is not None:
@@ -1254,7 +1483,17 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 'timestamp': timestamp,
                 'n_samples': int(X.shape[0]),
                 'n_features': int(X.shape[1]),
-                'performance': performance
+                'performance': performance,
+                'feature_names': feature_names,  # Include feature names for prediction
+                'target_column': None,  # No target for unsupervised
+                'numeric_cols': preprocessing_transformers.get('numeric_cols', []),
+                'categorical_cols': preprocessing_transformers.get('categorical_cols', []),
+                'preprocessing_artifacts': {
+                    'scaler': f"scaler_{timestamp}.joblib" if preprocessing_transformers.get('scaler') else None,
+                    'numeric_imputer': f"numeric_imputer_{timestamp}.joblib" if preprocessing_transformers.get('numeric_imputer') else None,
+                    'label_encoders': f"label_encoders_{timestamp}.joblib" if preprocessing_transformers.get('label_encoders') else None,
+                    'feature_info': f"feature_info_{timestamp}.json"
+                }
             }
             metadata_path = os.path.join(model_dir, f"metadata_{timestamp}.json")
             with open(metadata_path, 'w') as f:
@@ -1265,6 +1504,7 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             print("Γ£à UNSUPERVISED MODEL TRAINING COMPLETED")
             print(f"{'='*80}\n")
             
+            print(f"📊 Returning feature_names: {feature_names}")
             return {
                 'success': True,
                 'performance': performance,
@@ -1274,7 +1514,19 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     'model_path': model_path,
                     'model_directory': model_dir,
                     'n_samples': int(X.shape[0]),
-                    'n_features': int(X.shape[1])
+                    'n_features': int(X.shape[1]),
+                    'feature_names': feature_names  # Include in model_info too
+                },
+                'feature_names': feature_names,  # Also at top level for easy access
+                'training_details': {
+                    'feature_names': feature_names,
+                    'training_samples': int(X.shape[0]),
+                    'features': int(X.shape[1])
+                },
+                'feature_info': {
+                    'feature_names': feature_names,
+                    'target_column': None,
+                    'problem_type': 'unsupervised'
                 }
             }
             
@@ -1299,7 +1551,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
         Returns:
             sklearn unsupervised model instance
         """
-        from sklearn.cluster import KMeans, DBSCAN
+        from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+        from sklearn.mixture import GaussianMixture
         from sklearn.decomposition import PCA
         
         model_name_lower = model_name.lower()
@@ -1309,9 +1562,13 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             return KMeans(n_clusters=3, random_state=42)
         elif 'dbscan' in model_name_lower:
             return DBSCAN(eps=0.5, min_samples=5)
+        elif 'gaussian mixture' in model_name_lower or 'gmm' in model_name_lower or ('gaussian' in model_name_lower and 'mixture' in model_name_lower):
+            return GaussianMixture(n_components=3, random_state=42)
+        elif 'hierarchical' in model_name_lower or 'agglomerative' in model_name_lower:
+            return AgglomerativeClustering(n_clusters=3)
         
         # Dimensionality reduction models
-        elif 'pca' in model_name_lower:
+        elif 'pca' in model_name_lower or 'principal component' in model_name_lower:
             return PCA(n_components=2, random_state=42)
         elif 'tsne' in model_name_lower or 't-sne' in model_name_lower:
             from sklearn.manifold import TSNE
@@ -2070,7 +2327,7 @@ print("\\nΓ£à Clustering analysis completed!")
         print(f"ΓÜá∩╕Å  No mapping found for model '{recommendation_model_name}', using original name")
         return recommendation_model_name
 
-    def _execute_pipeline_training(self, model_name: str, original_name: str, file_path: str, target_column: str) -> Dict[str, Any]:
+    def _execute_pipeline_training(self, model_name: str, original_name: str, file_path: str, target_column: str = None) -> Dict[str, Any]:
         """
         Execute comprehensive model-specific training with realistic timing and high accuracy
         
@@ -2080,6 +2337,8 @@ print("\\nΓ£à Clustering analysis completed!")
         - Realistic training times (30-120 seconds depending on model complexity)
         - Detailed progress logging with step-by-step tracking
         - High accuracy targeting with intelligent retraining
+        
+        NOTE: This method is ONLY for labeled (supervised) data. For unlabeled data, use _train_unsupervised_model instead.
         """
         import pandas as pd
         import numpy as np
@@ -2096,6 +2355,10 @@ print("\\nΓ£à Clustering analysis completed!")
         import joblib
         
         try:
+            # Safety check: This method should NOT be called for unlabeled data
+            if target_column is None:
+                raise ValueError("❌ _execute_pipeline_training called without target_column. This method is only for labeled data. Use _train_unsupervised_model for unlabeled data.")
+            
             print(f"\n{'='*100}")
             print(f"≡ƒÜÇ STARTING COMPREHENSIVE TRAINING FOR: {model_name.upper()}")
             print(f"{'='*100}")
