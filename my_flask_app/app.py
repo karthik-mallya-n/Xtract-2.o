@@ -376,6 +376,76 @@ def recommend_model():
             'warnings': [f'Critical error in recommendation pipeline: {str(e)}']
         }), 200
 
+@app.route('/api/dataset-columns', methods=['GET'])
+def get_dataset_columns():
+    """
+    Get column information for a dataset
+    
+    Query parameters:
+    - file_id: ID of uploaded file
+    
+    Returns:
+    - JSON response with column names and types
+    """
+    try:
+        file_id = request.args.get('file_id')
+
+        if not file_id:
+            return jsonify({
+                'success': False,
+                'error': 'file_id parameter is required'
+            }), 400
+
+        # Check if file exists
+        if file_id not in uploaded_files:
+            return jsonify({
+                'success': False,
+                'error': 'File not found. Please upload a file first.'
+            }), 404
+
+        file_info = uploaded_files[file_id]
+        file_path = file_info['file_path']
+        
+        # Read the dataset to get column information
+        df = pd.read_csv(file_path)
+        
+        # Get column information
+        columns_info = []
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            
+            # Determine if column is numeric or categorical
+            if df[col].dtype in ['int64', 'float64', 'int32', 'float32']:
+                column_type = 'numeric'
+            else:
+                column_type = 'categorical'
+            
+            # Get sample values (first few non-null values)
+            sample_values = df[col].dropna().head(3).tolist()
+            
+            columns_info.append({
+                'name': col,
+                'type': column_type,
+                'dtype': dtype,
+                'sample_values': sample_values,
+                'null_count': int(df[col].isnull().sum()),
+                'unique_count': int(df[col].nunique())
+            })
+
+        return jsonify({
+            'success': True,
+            'file_id': file_id,
+            'total_rows': len(df),
+            'total_columns': len(df.columns),
+            'columns': columns_info
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error reading dataset: {str(e)}'
+        }), 500
+
 @app.route('/api/train', methods=['POST'])
 def start_training():
     """
@@ -399,6 +469,7 @@ def start_training():
         
         file_id = data.get('file_id')
         model_name = data.get('model_name')
+        target_column_override = data.get('target_column')  # New: target column from user selection
         
         if not file_id or not model_name:
             return jsonify({
@@ -455,7 +526,7 @@ def start_training():
         import pandas as pd
         df = pd.read_csv(file_path)
         
-        # Try to get target column from user answers or auto-detect
+        # Try to get target column from user selection, user answers, or auto-detect
         target_column = None
         
         # Check if this is a clustering model (no target column needed)
@@ -466,12 +537,17 @@ def start_training():
             # For clustering, use any column as dummy target (the algorithm will ignore it)
             target_column = df.columns[0]
             print(f"Clustering model detected - using dummy target: {target_column}")
+        elif target_column_override:
+            # Use the target column selected by the user
+            target_column = target_column_override
+            print(f"Using user-selected target column: {target_column}")
         elif 'target_column' in user_answers:
             target_column = user_answers['target_column']
         else:
             # Auto-detect: assume last column is target for classification/regression
             target_column = df.columns[-1]
-        
+            print(f"Auto-detected target column: {target_column}")
+
         # Use advanced training system
         print(f"🚀 Starting advanced training for model: {model_name}")
         print(f"📂 File path: {file_path}")
@@ -491,25 +567,6 @@ def start_training():
                 'error': f'Failed to load dataset: {str(e)}'
             }), 500
 
-        user_answers = file_info.get('user_answers', {})
-        
-        # Try to get target column from user answers or auto-detect
-        target_column = None
-        
-        # Check if this is a clustering model (no target column needed)
-        clustering_models = ['kmeans', 'dbscan', 'hierarchical clustering', 'gaussian mixture']
-        is_clustering = any(cluster_model in model_name.lower() for cluster_model in clustering_models)
-        
-        if is_clustering:
-            # For clustering, use any column as dummy target (the algorithm will ignore it)
-            target_column = df.columns[0]
-            print(f"Clustering model detected - using dummy target: {target_column}")
-        elif 'target_column' in user_answers:
-            target_column = user_answers['target_column']
-        else:
-            # Auto-detect: assume last column is target for classification/regression
-            target_column = df.columns[-1]
-        
         print(f"🎯 Target column: {target_column}")
         
         # Train the model using comprehensive preprocessing pipeline

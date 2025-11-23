@@ -44,6 +44,24 @@ export interface ModelRecommendation {
   error?: string;
 }
 
+export interface ColumnInfo {
+  name: string;
+  type: 'numeric' | 'categorical';
+  dtype: string;
+  sample_values: any[];
+  null_count: number;
+  unique_count: number;
+}
+
+export interface DatasetColumnsResponse {
+  success: boolean;
+  file_id?: string;
+  total_rows?: number;
+  total_columns?: number;
+  columns?: ColumnInfo[];
+  error?: string;
+}
+
 export interface TrainingResponse {
   success: boolean;
   task_id?: string;
@@ -244,15 +262,28 @@ class APIClient {
   }
 
   /**
+   * Get dataset column information for target selection
+   */
+  async getDatasetColumns(fileId: string): Promise<DatasetColumnsResponse> {
+    return this.fetch(`/api/dataset-columns?file_id=${fileId}`);
+  }
+
+  /**
    * Start model training
    */
-  async startTraining(fileId: string, modelName: string): Promise<TrainingResponse> {
+  async startTraining(fileId: string, modelName: string, targetColumn?: string): Promise<TrainingResponse> {
+    const body: any = {
+      file_id: fileId,
+      model_name: modelName,
+    };
+    
+    if (targetColumn) {
+      body.target_column = targetColumn;
+    }
+
     return this.fetch('/api/train', {
       method: 'POST',
-      body: JSON.stringify({
-        file_id: fileId,
-        model_name: modelName,
-      }),
+      body: JSON.stringify(body),
     });
   }
 

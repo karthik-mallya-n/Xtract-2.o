@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, ModelRecommendation } from '@/lib/api';
+import TargetColumnSelector from '@/components/TargetColumnSelector';
 
 /**
  * Futuristic Model Card Component with holographic effects
@@ -190,6 +191,8 @@ export default function SelectModelPage() {
   const [recommendations, setRecommendations] = useState<ModelRecommendation | null>(null);
   const [error, setError] = useState<string>('');
   const [fileId, setFileId] = useState<string>('');
+  const [selectedTargetColumn, setSelectedTargetColumn] = useState<string>('');
+  const [showTargetSelection, setShowTargetSelection] = useState(false);
   
   // Prevent duplicate requests in React development mode
   const hasRequestedRef = useRef(false);
@@ -244,6 +247,21 @@ export default function SelectModelPage() {
       return;
     }
 
+    // Check if this is a labeled dataset and we need target column selection
+    const isLabeled = recommendations?.user_answers?.is_labeled === 'labeled';
+    
+    if (isLabeled && !showTargetSelection) {
+      // Show target column selection for labeled datasets
+      setShowTargetSelection(true);
+      setError('');
+      return;
+    }
+
+    if (isLabeled && !selectedTargetColumn) {
+      setError('Please select a target column');
+      return;
+    }
+
     // Find the selected model details
     const allModels = [
       ...(recommendations?.recommendations?.recommended_models || []),
@@ -260,8 +278,13 @@ export default function SelectModelPage() {
 
     try {
       console.log('Starting training for:', modelName);
+      console.log('Target column:', selectedTargetColumn || 'auto-detect');
       
-      const response = await apiClient.startTraining(fileId, modelName);
+      const response = await apiClient.startTraining(
+        fileId, 
+        modelName, 
+        isLabeled ? selectedTargetColumn : undefined
+      );
       
       if (response.success && response.result) {
         const completeResults = {
@@ -279,6 +302,21 @@ export default function SelectModelPage() {
       setError('Training failed. Please try again.');
       setIsTraining(false);
     }
+  };
+
+  const handleTargetColumnSelect = (columnName: string) => {
+    setSelectedTargetColumn(columnName);
+    setError('');
+  };
+
+  const handleTargetColumnError = (errorMessage: string) => {
+    setError(errorMessage);
+  };
+
+  const handleBackToModelSelection = () => {
+    setShowTargetSelection(false);
+    setSelectedTargetColumn('');
+    setError('');
   };
 
   // Fallback models for when LLM is not available
@@ -468,8 +506,115 @@ export default function SelectModelPage() {
       <div className="absolute inset-0 geometric-pattern opacity-20" />
       
       {/* Main Content with proper spacing */}
-      <div className="relative z-10  pb-12">
+      <div className="relative z-10 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Conditional rendering based on current step */}
+          {showTargetSelection ? (
+            /* Target Column Selection Step */
+            <motion.div
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.5 }}
+            >
+              {/* Header for Target Selection */}
+              <motion.div 
+                className="text-center mb-12"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <motion.div 
+                  className="flex justify-center mb-8"
+                  animate={{ rotateY: 360 }}
+                  transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                >
+                  <Target className="h-16 w-16 text-cyan-400" style={{ filter: 'drop-shadow(0 0 20px rgba(0, 245, 255, 0.5))' }} />
+                </motion.div>
+                
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white mb-6">
+                  <span className="gradient-text">Target Column</span> Selection
+                </h1>
+                <p className="text-lg sm:text-xl text-gray-300 max-w-4xl mx-auto px-4">
+                  Select which column you want the AI model to predict
+                </p>
+              </motion.div>
+
+              {/* Target Column Selector */}
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="mb-12"
+              >
+                <TargetColumnSelector
+                  fileId={fileId}
+                  onColumnSelect={handleTargetColumnSelect}
+                  onError={handleTargetColumnError}
+                />
+              </motion.div>
+
+              {/* Error Display */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="mb-6 bg-red-500/10 border border-red-500/20 rounded-lg p-4 max-w-3xl mx-auto"
+                  >
+                    <div className="flex items-center text-red-300">
+                      <AlertCircle className="h-5 w-5 mr-2" />
+                      <span>{error}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Navigation Buttons */}
+              <motion.div 
+                className="flex justify-center space-x-4"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <motion.button
+                  onClick={handleBackToModelSelection}
+                  className="px-8 py-3 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-all duration-300"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  Back to Model Selection
+                </motion.button>
+
+                <motion.button
+                  onClick={handleStartTraining}
+                  disabled={!selectedTargetColumn || isTraining}
+                  className={`px-8 py-4 rounded-xl font-semibold transition-all duration-300 ${
+                    selectedTargetColumn && !isTraining
+                      ? 'bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-lg'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                  whileHover={selectedTargetColumn && !isTraining ? { scale: 1.02, y: -2 } : {}}
+                  whileTap={selectedTargetColumn && !isTraining ? { scale: 0.98 } : {}}
+                >
+                  {isTraining ? (
+                    <span className="flex items-center justify-center">
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Training Model...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <Zap className="mr-2 h-5 w-5" />
+                      Start Training
+                    </span>
+                  )}
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          ) : (
+            /* Model Selection Step */
+            <>
           {/* Header */}
           <motion.div 
             className="text-center mb-16"
@@ -646,6 +791,8 @@ export default function SelectModelPage() {
               )}
             </motion.button>
           </motion.div>
+          </>
+          )}
         </div>
       </div>
     </div>
