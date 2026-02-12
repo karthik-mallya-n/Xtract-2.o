@@ -23,6 +23,7 @@ interface TrainingResults {
   model_name?: string;
   main_score: number;
   threshold_met: boolean;
+  selected_columns?: string[];
   performance?: {
     model_name?: string;
     model_type?: string;
@@ -75,6 +76,7 @@ interface TrainingResults {
   feature_info?: {
     feature_names?: string[];
     original_feature_names?: string[];
+    selected_columns?: string[];
     target_column?: string;
     problem_type?: string;
     feature_count?: number;

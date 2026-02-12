@@ -1,0 +1,27 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://backend:5000
+
+  backend:
+    build:
+      context: ./my_flask_app
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./my_flask_app:/app
+      - ./models:/app/models
+      - ./uploads:/app/uploads
+    environment:
+      - FLASK_ENV=development

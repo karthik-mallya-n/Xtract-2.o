@@ -35,7 +35,7 @@ umap-learn>=0.5.0
 hdbscan>=0.8.0
 
 # Deep Learning and Neural Networks
-tensorflow>=2.13.0
+# tensorflow>=2.13.0
 torch>=2.0.0
 torchvision>=0.15.0
 
@@ -80,47 +80,47 @@ prophet>=1.1.4
 pmdarima>=2.0.3
 
 # Natural Language Processing (if needed)
-nltk>=3.8.0
-spacy>=3.6.0
+# nltk>=3.8.0
+# spacy>=3.6.0
 
-# Computer Vision (if needed)
-opencv-python>=4.8.0
+# # Computer Vision (if needed)
+# opencv-python>=4.8.0
 Pillow>=10.0.0
 
 # Hyperparameter Tuning
-hyperopt>=0.2.7
-bayesian-optimization>=1.4.0
+# hyperopt>=0.2.7
+# bayesian-optimization>=1.4.0
 
-# Model Interpretation and Explainability
-shap>=0.42.0
-lime>=0.2.0
-eli5>=0.13.0
+# # Model Interpretation and Explainability
+# shap>=0.42.0
+# lime>=0.2.0
+# eli5>=0.13.0
 
 # Advanced Ensemble Methods
-mlxtend>=0.22.0
-vecstack>=0.4.0
+# mlxtend>=0.22.0
+# vecstack>=0.4.0
 
-# Time Series Forecasting
-sktime>=0.21.0
-tsfresh>=0.20.0
+# # Time Series Forecasting
+# sktime>=0.21.0
+# tsfresh>=0.20.0
 
-# Automated ML
-auto-sklearn>=0.15.0
-tpot>=0.12.0
+# # Automated ML
+# auto-sklearn>=0.15.0
+# tpot>=0.12.0
 
-# Model Versioning and MLOps
-mlflow>=2.6.0
-dvc>=3.0.0
+# # Model Versioning and MLOps
+# mlflow>=2.6.0
+# dvc>=3.0.0
 
-# GPU Acceleration (optional)
-cupy-cuda11x>=12.0.0; sys_platform != "darwin"
-cudf-cu11>=23.0.0; sys_platform != "darwin"
+# # GPU Acceleration (optional)
+# cupy-cuda11x>=12.0.0; sys_platform != "darwin"
+# cudf-cu11>=23.0.0; sys_platform != "darwin"
 
 # Memory and Performance Optimization
-numba>=0.57.0
-dask>=2023.8.0
+# numba>=0.57.0
+# dask>=2023.8.0
 
-# Additional Data Sources
-sqlalchemy>=2.0.0
-pymongo>=4.4.0
-psycopg2-binary>=2.9.0
+# # Additional Data Sources
+# sqlalchemy>=2.0.0
+# pymongo>=4.4.0
+# psycopg2-binary>=2.9.0
