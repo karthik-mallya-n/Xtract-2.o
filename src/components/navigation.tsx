@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Database, Brain, Target, BarChart3, TrendingUp, Menu, X } from 'lucide-react';
+import { Database, Brain, Target, BarChart3, TrendingUp, MessageSquareText, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 
@@ -19,6 +19,7 @@ export default function Navigation() {
     { href: '/select-model', label: 'Models', icon: Target },
     { href: '/results', label: 'Results', icon: BarChart3 },
     { href: '/visualizations', label: 'Visualizations', icon: TrendingUp },
+    { href: '/analysis', label: 'Analysis', icon: MessageSquareText },
   ];
 
   const toggleMobileMenu = () => {

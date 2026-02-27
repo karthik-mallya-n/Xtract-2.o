@@ -4,8 +4,10 @@ Main API server handling file uploads, model recommendations, training, and pred
 """
 
 import os
+import sys
 import uuid
 import json
+import traceback
 import pandas as pd
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -2247,6 +2249,186 @@ def create_visualization():
             'success': False,
             'error': error_msg
         }), 500
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# AI Analysis Chat Endpoints
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@app.route('/api/analysis/summary', methods=['GET'])
+def get_analysis_summary():
+    """Get a comprehensive AI-generated summary of the uploaded dataset"""
+    try:
+        file_id = request.args.get('file_id')
+        if not file_id:
+            return jsonify({'success': False, 'error': 'No file_id provided'}), 400
+
+        # Find the uploaded file
+        import glob
+        potential_files = glob.glob(f"{app.config['UPLOAD_FOLDER']}/{file_id}.*")
+        if not potential_files:
+            potential_files = glob.glob(f"{app.config['UPLOAD_FOLDER']}/*{file_id[:8]}*.*")
+
+        if not potential_files:
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+
+        file_path = potential_files[0]
+        print(f"📊 Analyzing file for summary: {file_path}")
+
+        # Analyze the dataset
+        analysis = ml_core.analyze_dataset(file_path, sample_size=20)
+
+        # Build a concise dataset context
+        df = pd.read_csv(file_path) if file_path.endswith('.csv') else pd.read_excel(file_path)
+        
+        summary_data = {
+            'total_rows': len(df),
+            'total_columns': len(df.columns),
+            'columns': df.columns.tolist(),
+            'dtypes': df.dtypes.astype(str).to_dict(),
+            'missing_values': df.isnull().sum().to_dict(),
+            'numeric_columns': df.select_dtypes(include=['number']).columns.tolist(),
+            'categorical_columns': df.select_dtypes(include=['object']).columns.tolist(),
+            'numeric_summary': df.describe().to_dict() if len(df.select_dtypes(include=['number']).columns) > 0 else {},
+            'sample_rows': df.head(5).to_dict('records'),
+        }
+
+        # Generate AI summary
+        prompt = f"""You are a data analyst assistant. Analyze this dataset and provide a comprehensive but concise summary.
+
+Dataset Overview:
+- Rows: {summary_data['total_rows']}
+- Columns: {summary_data['total_columns']}
+- Column Names: {summary_data['columns']}
+- Data Types: {json.dumps(summary_data['dtypes'])}
+- Missing Values: {json.dumps(summary_data['missing_values'])}
+- Numeric Columns: {summary_data['numeric_columns']}
+- Categorical Columns: {summary_data['categorical_columns']}
+
+Statistical Summary:
+{json.dumps(summary_data['numeric_summary'], indent=2, default=str)}
+
+Sample Data (first 5 rows):
+{json.dumps(summary_data['sample_rows'], indent=2, default=str)}
+
+Provide your analysis in this exact format:
+1. **Dataset Overview**: Brief description of what this dataset contains
+2. **Key Statistics**: Important numbers and distributions
+3. **Data Quality**: Missing values, potential issues
+4. **Interesting Patterns**: Any notable patterns or observations
+5. **Suggestions**: What analyses or models could be useful
+
+Keep it conversational and insightful. Use markdown formatting."""
+
+        response = ml_core.genai_model.generate_content(prompt)
+        ai_summary = response.text
+
+        return jsonify({
+            'success': True,
+            'summary': ai_summary,
+            'dataset_info': summary_data
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        sys.stdout.flush()
+        print(f"❌ Analysis summary error: {str(e)}", flush=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/analysis/chat', methods=['POST'])
+def analysis_chat():
+    """Chat with AI about the uploaded dataset"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        message = data.get('message', '').strip()
+        file_id = data.get('file_id', '')
+        chat_history = data.get('history', [])
+
+        if not message:
+            return jsonify({'success': False, 'error': 'No message provided'}), 400
+
+        if not file_id:
+            return jsonify({'success': False, 'error': 'No file_id provided'}), 400
+
+        # Find the uploaded file
+        import glob
+        potential_files = glob.glob(f"{app.config['UPLOAD_FOLDER']}/{file_id}.*")
+        if not potential_files:
+            potential_files = glob.glob(f"{app.config['UPLOAD_FOLDER']}/*{file_id[:8]}*.*")
+
+        if not potential_files:
+            return jsonify({'success': False, 'error': 'File not found. Please upload a dataset first.'}), 404
+
+        file_path = potential_files[0]
+
+        # Load dataset for context
+        df = pd.read_csv(file_path) if file_path.endswith('.csv') else pd.read_excel(file_path)
+
+        # Build dataset context
+        dataset_context = f"""Dataset Context:
+- File: {os.path.basename(file_path)}
+- Shape: {df.shape[0]} rows × {df.shape[1]} columns
+- Columns: {', '.join(df.columns.tolist())}
+- Data Types: {json.dumps(df.dtypes.astype(str).to_dict())}
+- Missing Values: {json.dumps(df.isnull().sum().to_dict())}
+- Numeric Columns: {df.select_dtypes(include=['number']).columns.tolist()}
+- Categorical Columns: {df.select_dtypes(include=['object']).columns.tolist()}
+
+Statistical Summary:
+{df.describe().to_string()}
+
+Sample Data (first 5 rows):
+{df.head(5).to_string()}
+
+Value Counts for Categorical Columns (top 5 each):
+"""
+        for col in df.select_dtypes(include=['object']).columns[:5]:
+            dataset_context += f"\n{col}:\n{df[col].value_counts().head(5).to_string()}\n"
+
+        # Build conversation history for context
+        conversation = ""
+        for msg in chat_history[-10:]:  # Keep last 10 messages for context
+            role = "User" if msg.get('role') == 'user' else "Assistant"
+            conversation += f"\n{role}: {msg.get('content', '')}"
+
+        prompt = f"""You are an expert data analyst AI assistant called "Xtract AI Analyst". You are having a conversation about a specific dataset that the user has uploaded.
+
+{dataset_context}
+
+Previous Conversation:{conversation}
+
+User's Current Question: {message}
+
+Instructions:
+- Answer the question specifically about this dataset
+- Use actual column names, values, and statistics from the data
+- If the user asks for calculations, compute them from the data context provided
+- Be specific and data-driven in your responses
+- Use markdown formatting for better readability (bold, lists, tables, code blocks)
+- If you can't answer something from the available data, say so honestly
+- Keep responses concise but thorough
+- If the user asks about patterns, correlations, or predictions, provide insights based on the actual data
+
+Your response:"""
+
+        response = ml_core.genai_model.generate_content(prompt)
+        ai_response = response.text
+
+        return jsonify({
+            'success': True,
+            'response': ai_response
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        sys.stdout.flush()
+        print(f"❌ Analysis chat error: {str(e)}", flush=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.errorhandler(404)
 def not_found(error):
