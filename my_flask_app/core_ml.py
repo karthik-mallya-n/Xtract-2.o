@@ -1220,6 +1220,11 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     'scaler_used': scaler is not None,
                     'label_encoding_used': len(label_encoders) > 0,
                     'target_encoding_used': target_encoder is not None
+                },
+                'preprocessing_artifacts': {
+                    'scaler': f"scaler_{timestamp}.joblib" if scaler else None,
+                    'label_encoders': f"label_encoders_{timestamp}.joblib" if label_encoders else None,
+                    'target_encoder': f"target_encoder_{timestamp}.joblib" if target_encoder else None
                 }
             }
             metadata_path = os.path.join(model_dir, f"metadata_{timestamp}.json")

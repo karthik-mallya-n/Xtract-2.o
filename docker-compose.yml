@@ -11,7 +11,8 @@ services:
       - /app/.next
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://backend:5000
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+      - NEXT_PRIVATE_API_URL=http://backend:5000
 
   backend:
     build:
@@ -25,3 +26,5 @@ services:
       - ./uploads:/app/uploads
     environment:
       - FLASK_ENV=development
+      - GOOGLE_AI_API_KEY=AIzaSyClbS48HrkM8ZqeEUjROfgqO99759DO2Oc
+      - GOOGLE_AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta

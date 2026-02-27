@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Forward the request to Flask backend
-    const flaskUrl = process.env.NEXT_PUBLIC_API_URL || 'http://backend:5000';
+    const flaskUrl = process.env.NEXT_PRIVATE_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://backend:5000';
     const response = await fetch(`${flaskUrl}/api/predict`, {
       method: 'POST',
       headers: {

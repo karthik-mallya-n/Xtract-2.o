@@ -1858,9 +1858,31 @@ def make_prediction():
             prediction_display = f"{cluster_prediction.get('cluster_label', f'Cluster {prediction}')} ({cluster_prediction.get('cluster_percentage', 0):.1f}% of data)"
             prediction_decoded = prediction_display
         else:
-            # For supervised models, use the prediction as-is
+            # For supervised models, try to decode the prediction if it's a classification task
             prediction_decoded = str(prediction)
             cluster_prediction = None
+            
+            # Try to load target encoder to convert numeric predictions back to original class labels
+            try:
+                preprocessing_artifacts = metadata.get('preprocessing_artifacts', {})
+                if preprocessing_artifacts.get('target_encoder'):
+                    target_encoder_path = os.path.join(model_folder, preprocessing_artifacts['target_encoder'])
+                    if os.path.exists(target_encoder_path):
+                        print(f"🔄 Loading target encoder from: {target_encoder_path}")
+                        target_encoder = joblib.load(target_encoder_path)
+                        
+                        # Convert numeric prediction back to original class label
+                        # Handle both single values and arrays
+                        if isinstance(prediction, (list, np.ndarray)):
+                            decoded_prediction = target_encoder.inverse_transform([int(prediction[0])])[0]
+                        else:
+                            decoded_prediction = target_encoder.inverse_transform([int(prediction)])[0]
+                        
+                        prediction_decoded = str(decoded_prediction)
+                        print(f"✅ Decoded prediction: {prediction} → {prediction_decoded}")
+            except Exception as e:
+                print(f"⚠️  Could not decode prediction using target encoder: {e}")
+                # Fall back to using numeric prediction
         
         return jsonify({
             'success': True,
