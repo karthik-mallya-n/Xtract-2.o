@@ -139,6 +139,8 @@ export default function UploadPage() {
   const [targetColumn, setTargetColumn] = useState<string>('');
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [columnsPreviewed, setColumnsPreviewed] = useState(false);
+  const [selectedTrainingColumns, setSelectedTrainingColumns] = useState<string[]>([]);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
 
   // Check backend availability on component mount
   useEffect(() => {
@@ -156,6 +158,8 @@ export default function UploadPage() {
     setAvailableColumns([]);
     setTargetColumn('');
     setColumnsPreviewed(false);
+    setSelectedTrainingColumns([]);
+    setShowColumnSelector(false);
     // Preview columns from backend after file select
     const formData = new FormData();
     formData.append('file', file);
@@ -167,7 +171,9 @@ export default function UploadPage() {
       .then(data => {
         if (data.success && Array.isArray(data.columns)) {
           setAvailableColumns(data.columns);
+          setSelectedTrainingColumns(data.columns); // Initially select all columns
           setColumnsPreviewed(true);
+          setShowColumnSelector(true);
         }
       })
       .catch(err => {
@@ -181,7 +187,9 @@ export default function UploadPage() {
             if (lines.length > 0) {
               const headers = lines[0].split(',').map(h => h.trim());
               setAvailableColumns(headers);
+              setSelectedTrainingColumns(headers); // Initially select all columns
               setColumnsPreviewed(true);
+              setShowColumnSelector(true);
             }
           } catch (err) {
             console.error('Error parsing file:', err);
@@ -207,6 +215,14 @@ export default function UploadPage() {
         setError('Please select the target column.');
         return;
       }
+      if (selectedTrainingColumns.length === 0) {
+        setError('Please select at least one column for training.');
+        return;
+      }
+      if (targetColumn && !selectedTrainingColumns.includes(targetColumn)) {
+        setError('Target column must be included in training columns.');
+        return;
+      }
     }
     // For unlabeled data, clear dataType
     if (isLabeled === 'unlabeled') {
@@ -228,7 +244,8 @@ export default function UploadPage() {
         isLabeled,
         dataType,
         targetColumn,
-        (progress) => setUploadProgress(progress)
+        (progress) => setUploadProgress(progress),
+        selectedTrainingColumns
       );
 
       if (response.success && response.file_id) {
@@ -528,6 +545,97 @@ export default function UploadPage() {
               </motion.div>
             )}
 
+            {/* Training Columns Selection */}
+            {showColumnSelector && availableColumns.length > 0 && (
+              <motion.div 
+                className="futuristic-card mt-8"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <label className="block text-xl font-bold text-white mb-4">
+                  Select Columns for Training
+                </label>
+                <p className="text-gray-400 text-sm mb-6">
+                  Choose which columns to include in the model training. You can exclude irrelevant columns like IDs or timestamps.
+                </p>
+                
+                {/* Select All / Deselect All Buttons */}
+                <div className="flex gap-4 mb-6">
+                  <motion.button
+                    type="button"
+                    onClick={() => setSelectedTrainingColumns(availableColumns)}
+                    className="px-4 py-2 text-sm font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/30 rounded-lg hover:bg-cyan-400/20 transition-all duration-200"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Select All
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => setSelectedTrainingColumns([])}
+                    className="px-4 py-2 text-sm font-medium text-red-400 bg-red-400/10 border border-red-400/30 rounded-lg hover:bg-red-400/20 transition-all duration-200"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Deselect All
+                  </motion.button>
+                </div>
+
+                {/* Column Checkboxes */}
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {availableColumns.map((column, index) => (
+                    <motion.label
+                      key={column}
+                      className={`flex items-center p-3 rounded-lg cursor-pointer transition-all duration-200 border ${
+                        selectedTrainingColumns.includes(column)
+                          ? 'bg-cyan-400/10 border-cyan-400/30 text-white'
+                          : 'bg-gray-800/30 border-gray-600 hover:bg-gray-700/30 hover:border-cyan-400/20 text-gray-300'
+                      }`}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      whileHover={{ scale: 1.02 }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTrainingColumns.includes(column)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTrainingColumns([...selectedTrainingColumns, column]);
+                          } else {
+                            setSelectedTrainingColumns(selectedTrainingColumns.filter(col => col !== column));
+                          }
+                        }}
+                        className="h-5 w-5 text-cyan-400 bg-gray-700 border-gray-500 rounded focus:ring-cyan-400 focus:ring-2"
+                      />
+                      <span className="ml-3 text-sm font-medium">
+                        {column}
+                        {column === targetColumn && (
+                          <span className="ml-2 px-2 py-1 text-xs font-bold bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30">
+                            TARGET
+                          </span>
+                        )}
+                      </span>
+                    </motion.label>
+                  ))}
+                </div>
+                
+                {selectedTrainingColumns.length > 0 && (
+                  <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600">
+                    <p className="text-sm text-gray-300">
+                      <span className="font-medium text-white">Selected:</span> {selectedTrainingColumns.length} of {availableColumns.length} columns
+                      {targetColumn && !selectedTrainingColumns.includes(targetColumn) && (
+                        <span className="block mt-1 text-orange-400 font-medium">
+                          ⚠️ Target column must be included in training columns
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {/* Submit Button */}
             <motion.div 
               className="flex justify-center"
@@ -537,27 +645,27 @@ export default function UploadPage() {
             >
               <motion.button
                 type="submit"
-                disabled={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)}
+                disabled={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) || (showColumnSelector && selectedTrainingColumns.length === 0)}
                 className={`px-12 py-5 text-xl font-bold rounded-xl transition-all duration-300 ${
-                  !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)
+                  !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) || (showColumnSelector && selectedTrainingColumns.length === 0)
                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed border border-gray-500'
                     : 'text-white border border-cyan-400/30'
                 }`}
                 style={{
-                  background: !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)
+                  background: !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) || (showColumnSelector && selectedTrainingColumns.length === 0)
                     ? 'rgba(75, 85, 99, 0.5)' 
                     : 'linear-gradient(135deg, #00f5ff 0%, #9945ff 100%)',
-                  boxShadow: !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn)
+                  boxShadow: !selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) || (showColumnSelector && selectedTrainingColumns.length === 0)
                     ? 'none'
                     : '0 8px 32px rgba(0, 245, 255, 0.3)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.8px'
                 }}
-                whileHover={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) ? {} : { 
+                whileHover={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) || (showColumnSelector && selectedTrainingColumns.length === 0) ? {} : { 
                   scale: 1.05,
                   boxShadow: '0 0 30px rgba(0, 245, 255, 0.4)'
                 }}
-                whileTap={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) ? {} : { scale: 0.98 }}
+                whileTap={!selectedFile || !isLabeled || (isLabeled === 'labeled' && !dataType) || isLoading || (isLabeled === 'labeled' && availableColumns.length > 0 && !targetColumn) || (showColumnSelector && selectedTrainingColumns.length === 0) ? {} : { scale: 0.98 }}
               >
                 {isLoading ? (
                   <span className="flex items-center">

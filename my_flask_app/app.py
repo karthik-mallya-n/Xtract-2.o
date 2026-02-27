@@ -179,6 +179,18 @@ def upload_file():
         is_labeled = request.form.get('is_labeled', '').strip()
         data_type = request.form.get('data_type', '').strip()
         target_column = request.form.get('target_column', '').strip()
+        selected_columns_json = request.form.get('selected_columns', '').strip()
+        
+        # Parse selected columns
+        selected_columns = []
+        if selected_columns_json:
+            try:
+                selected_columns = json.loads(selected_columns_json)
+            except json.JSONDecodeError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid selected columns format'
+                }), 400
         
         # Validate required fields
         if not is_labeled:
@@ -219,7 +231,8 @@ def upload_file():
             'user_answers': {
                 'is_labeled': is_labeled,
                 'data_type': data_type if is_labeled.lower() == 'labeled' else '',
-                'target_column': target_column if is_labeled.lower() == 'labeled' else ''
+                'target_column': target_column if is_labeled.lower() == 'labeled' else '',
+                'selected_columns': selected_columns if selected_columns else []
             }
         }
         
@@ -571,6 +584,15 @@ def start_training():
                     'error': f'File with ID {file_id} not found. Please upload a file first.'
                 }), 404
         user_answers = file_info.get('user_answers', {})
+        selected_columns = user_answers.get('selected_columns', [])
+        
+        print(f"\n{'='*100}")
+        print(f"🚀 TRAINING ENDPOINT - COLUMN FILTERING CHECK")
+        print(f"{'='*100}")
+        print(f"📊 User answers: {user_answers}")
+        print(f"📊 Selected columns from user_answers: {selected_columns}")
+        print(f"📊 Selected column count: {len(selected_columns) if selected_columns else 0}")
+        print(f"{'='*100}\n")
         
         # Load the dataset
         import pandas as pd
@@ -637,7 +659,8 @@ def start_training():
             file_path=file_path,
             model_name=model_name,
             user_data=user_answers,
-            target_column=target_column
+            target_column=target_column,
+            selected_columns=selected_columns if selected_columns else None
         )
         
         # Store training info
@@ -653,129 +676,95 @@ def start_training():
             print(f"Performance: {result.get('performance', {})}")
         print(f"{'='*100}\n")
         
-        # Get feature information from the training result
+        # Get feature information from the training result to preserve selected_columns
         feature_info = {}
         is_unsupervised = result.get('performance', {}).get('model_type') == 'unsupervised' or is_unlabeled or is_clustering_model
         
-        if result.get('success') and result.get('model_info'):
-            model_info = result['model_info']
+        if result.get('success'):
+            model_info = result.get('model_info', {})
             model_dir = model_info.get('model_directory', '')
-            artifacts = model_info.get('artifacts', {})
             
-            # Try to load feature info from the saved artifacts
-            try:
-                if artifacts.get('feature_info'):
-                    feature_info_path = os.path.join(model_dir, artifacts['feature_info'])
-                    if os.path.exists(feature_info_path):
+            # First, try to load feature_info from saved files
+            feature_info_loaded = False
+            if model_dir and os.path.exists(model_dir):
+                try:
+                    # Try to load feature_info file first
+                    feature_info_files = [f for f in os.listdir(model_dir) if f.startswith('feature_info_') and f.endswith('.json')]
+                    if feature_info_files:
+                        feature_info_path = os.path.join(model_dir, feature_info_files[0])
                         with open(feature_info_path, 'r') as f:
-                            feature_data = json.load(f)
+                            feature_info = json.load(f)
+                        print(f"📊 Feature info loaded from file: {feature_info}")
+                        feature_info_loaded = True
+                except Exception as e:
+                    print(f"⚠️ Could not load feature_info file: {e}")
+            
+            # If feature_info file loading failed, try metadata
+            if not feature_info_loaded and model_dir and os.path.exists(model_dir):
+                try:
+                    metadata_files = [f for f in os.listdir(model_dir) if f.startswith('metadata_') and f.endswith('.json')]
+                    if metadata_files:
+                        metadata_path = os.path.join(model_dir, metadata_files[0])
+                        with open(metadata_path, 'r') as f:
+                            metadata = json.load(f)
                         feature_info = {
-                            'feature_names': feature_data.get('feature_names', []),
-                            'target_column': feature_data.get('target_column', target_column) if target_column else None,
-                            'problem_type': result.get('performance', {}).get('model_type', 'unsupervised' if is_unsupervised else 'classification')
+                            'feature_names': metadata.get('feature_names', []),
+                            'target_column': metadata.get('target_column'),
+                            'problem_type': metadata.get('model_type', 'unsupervised' if is_unsupervised else 'classification'),
+                            'numeric_cols': metadata.get('numeric_cols', []),
+                            'categorical_cols': metadata.get('categorical_cols', []),
+                            'selected_columns': metadata.get('selected_columns', [])  # This is the key fix!
                         }
-                        print(f"📊 Feature info loaded from artifacts: {len(feature_info.get('feature_names', []))} features")
-                    else:
-                        raise FileNotFoundError(f"Feature info file not found: {feature_info_path}")
-            except Exception as e:
-                print(f"⚠️ Could not load feature info from artifacts: {e}")
-                # Try to get feature names from result first (these are the actual features used)
-                if result.get('feature_names'):
-                    feature_names = result['feature_names']
-                    print(f"📊 Feature names from result: {feature_names}")
-                elif result.get('training_details', {}).get('feature_names'):
-                    feature_names = result['training_details']['feature_names']
-                    print(f"📊 Feature names from training_details: {feature_names}")
-                elif result.get('feature_info', {}).get('feature_names'):
-                    feature_names = result['feature_info']['feature_names']
-                    print(f"📊 Feature names from feature_info: {feature_names}")
-                elif result.get('model_info', {}).get('feature_names'):
-                    feature_names = result['model_info']['feature_names']
-                    print(f"📊 Feature names from model_info: {feature_names}")
-                else:
-                    # Fallback: extract feature names from the dataset
-                    try:
-                        import pandas as pd
-                        temp_df = pd.read_csv(file_path)
-                        if is_unsupervised:
-                            # For unsupervised, exclude ID columns (same logic as in training)
-                            id_patterns = ['id', 'customerid', 'userid', 'user_id', 'customer_id', 'index', 'idx']
-                            feature_names = []
-                            for col in temp_df.columns:
-                                col_lower = col.lower().strip()
-                                if any(pattern in col_lower for pattern in id_patterns):
-                                    unique_ratio = temp_df[col].nunique() / len(temp_df)
-                                    if unique_ratio > 0.95:  # Exclude unique identifiers
-                                        continue
-                                feature_names.append(col)
-                        else:
-                            # For supervised, exclude target column
-                            feature_names = [col for col in temp_df.columns if col != target_column] if target_column else list(temp_df.columns)
-                        
-                        print(f"📊 Feature names extracted from dataset: {feature_names}")
-                    except Exception as inner_e:
-                        print(f"❌ Could not extract features from dataset: {inner_e}")
-                        feature_names = []
-                
-                # Get numeric and categorical columns from result or metadata
-                numeric_cols = result.get('numeric_cols', result.get('training_details', {}).get('numeric_cols', []))
-                categorical_cols = result.get('categorical_cols', result.get('training_details', {}).get('categorical_cols', []))
-                
+                        print(f"📊 Feature info constructed from metadata: {feature_info}")
+                        feature_info_loaded = True
+                except Exception as e:
+                    print(f"⚠️ Could not load metadata: {e}")
+            
+            # Final fallback: construct from training result data
+            if not feature_info_loaded:
+                print(f"📊 Using fallback feature_info construction")
+                feature_names = (
+                    result.get('feature_names') or
+                    result.get('training_details', {}).get('feature_names') or
+                    model_info.get('feature_names') or
+                    []
+                )
                 feature_info = {
                     'feature_names': feature_names,
                     'target_column': target_column if not is_unsupervised else None,
-                    'problem_type': 'unsupervised' if is_unsupervised else result.get('performance', {}).get('model_type', 'classification'),
-                    'numeric_cols': numeric_cols,
-                    'categorical_cols': categorical_cols
+                    'problem_type': 'unsupervised' if is_unsupervised else 'classification',
+                    'numeric_cols': result.get('numeric_cols', []),
+                    'categorical_cols': result.get('categorical_cols', []),
+                    'selected_columns': selected_columns  # Use from user_answers as fallback
                 }
-                print(f"📊 Final feature info: {len(feature_names)} features - {feature_names}")
-                print(f"📊 Numeric cols: {numeric_cols}")
-                print(f"📊 Categorical cols: {categorical_cols}")
+                print(f"📊 Feature info constructed as final fallback: {feature_info}")
         else:
-            # Training failed or no model_info, fallback to dataset
-            # Try to get feature names from result first
-            if result.get('feature_names'):
-                feature_names = result['feature_names']
-            elif result.get('training_details', {}).get('feature_names'):
-                feature_names = result['training_details']['feature_names']
-            elif result.get('feature_info', {}).get('feature_names'):
-                feature_names = result['feature_info']['feature_names']
-            else:
-                try:
-                    import pandas as pd
-                    temp_df = pd.read_csv(file_path)
-                    if is_unsupervised:
-                        # For unsupervised, exclude ID columns (same logic as in training)
-                        id_patterns = ['id', 'customerid', 'userid', 'user_id', 'customer_id', 'index', 'idx']
-                        feature_names = []
-                        for col in temp_df.columns:
-                            col_lower = col.lower().strip()
-                            if any(pattern in col_lower for pattern in id_patterns):
-                                unique_ratio = temp_df[col].nunique() / len(temp_df)
-                                if unique_ratio > 0.95:  # Exclude unique identifiers
-                                    continue
-                            feature_names.append(col)
-                    else:
-                        # For supervised, exclude target column
-                        feature_names = [col for col in temp_df.columns if col != target_column] if target_column else list(temp_df.columns)
-                except Exception as e:
-                    print(f"❌ Could not extract features from dataset: {e}")
-                    feature_names = []
-            
-            # Get numeric and categorical columns from result if available
-            numeric_cols = result.get('numeric_cols', result.get('training_details', {}).get('numeric_cols', []))
-            categorical_cols = result.get('categorical_cols', result.get('training_details', {}).get('categorical_cols', []))
-            
+            # Training failed, construct basic feature_info
+            feature_names = (
+                result.get('feature_names') or
+                result.get('training_details', {}).get('feature_names') or
+                []
+            )
             feature_info = {
                 'feature_names': feature_names,
                 'target_column': target_column if not is_unsupervised else None,
                 'problem_type': 'unsupervised' if is_unsupervised else 'classification',
-                'numeric_cols': numeric_cols,
-                'categorical_cols': categorical_cols
+                'numeric_cols': result.get('numeric_cols', []),
+                'categorical_cols': result.get('categorical_cols', []),
+                'selected_columns': selected_columns  # Use from user_answers
             }
-            print(f"📊 Feature info (fallback): {len(feature_names)} features - {feature_names}")
-            print(f"📊 Numeric cols (fallback): {numeric_cols}")
-            print(f"📊 Categorical cols (fallback): {categorical_cols}")
+            print(f"📊 Feature info (training failed): {feature_info}")
+            
+        # Log the final selected_columns for debugging
+        final_selected_columns = feature_info.get('selected_columns', [])
+        print(f"\n{'='*100}")
+        print(f"🔍 FINAL SELECTED COLUMNS CHECK")
+        print(f"{'='*100}")
+        print(f"📊 Feature info selected_columns: {final_selected_columns}")
+        print(f"📊 Selected columns count: {len(final_selected_columns) if final_selected_columns else 0}")
+        print(f"📊 Original user selected_columns: {selected_columns}")
+        print(f"📊 Feature info keys: {list(feature_info.keys())}")
+        print(f"{'='*100}\n")
         
         # Format response to match frontend expectations
         is_unsupervised_result = result.get('performance', {}).get('model_type') == 'unsupervised' or is_unlabeled or is_clustering_model
@@ -816,21 +805,6 @@ def start_training():
                 }
             }
             
-            # Update feature_info with names from result if available
-            if feature_names_from_result:
-                feature_info['feature_names'] = feature_names_from_result
-            
-            # Ensure feature_info includes numeric and categorical columns
-            if 'numeric_cols' not in feature_info:
-                feature_info['numeric_cols'] = result.get('numeric_cols', result.get('training_details', {}).get('numeric_cols', []))
-            if 'categorical_cols' not in feature_info:
-                feature_info['categorical_cols'] = result.get('categorical_cols', result.get('training_details', {}).get('categorical_cols', []))
-            
-            print(f"📊 Formatted result training_details.feature_names: {formatted_result['training_details'].get('feature_names', 'NOT FOUND')}")
-            print(f"📊 Feature info feature_names: {feature_info.get('feature_names', 'NOT FOUND')}")
-            print(f"📊 Result feature_names: {result.get('feature_names', 'NOT FOUND')}")
-            print(f"📊 Result training_details.feature_names: {result.get('training_details', {}).get('feature_names', 'NOT FOUND')}")
-            
             # Add clustering-specific info if unsupervised
             if is_unsupervised_result:
                 formatted_result['performance']['n_clusters'] = result.get('performance', {}).get('n_clusters')
@@ -842,8 +816,15 @@ def start_training():
             'success': True,
             'file_id': file_id,
             'model_name': model_name,
-            'result': formatted_result,
+            # Flatten the performance data to root level for frontend compatibility
+            'performance': formatted_result.get('performance', {}),
+            'main_score': formatted_result.get('main_score', 0),
+            'threshold_met': formatted_result.get('threshold_met', False),
+            'problem_type': formatted_result.get('problem_type', 'classification'),
+            'training_details': formatted_result.get('training_details', {}),
+            'model_info': formatted_result.get('model_info', {}),
             'feature_info': feature_info,
+            'result': formatted_result,  # Keep the original nested structure for backward compatibility
             'message': 'Training completed successfully!' + (' (Unsupervised)' if is_unsupervised_result else '')
         })
     
@@ -944,10 +925,18 @@ def train_recommended_model():
         file_info = uploaded_files[file_id]
         file_path = file_info['file_path']
         user_answers = file_info['user_answers']
+        selected_columns = user_answers.get('selected_columns', [])
         
-        print(f"\n🚀 TRAINING RECOMMENDED MODEL FOR FILE: {file_id}")
+        print(f"\n{'='*100}")
+        print(f"🚀 TRAINING RECOMMENDED MODEL ENDPOINT")
+        print(f"{'='*100}")
+        print(f"📂 File ID: {file_id}")
         print(f"📂 File path: {file_path}")
-        print(f"👤 User answers: {user_answers}")
+        print(f"🎯 Target column: {user_answers.get('target_column', 'Auto-detect (last column)')}")
+        print(f"📊 User selected columns: {selected_columns if selected_columns else 'All columns (no selection made)'}")
+        print(f"📊 Selected column count: {len(selected_columns) if selected_columns else 'N/A'}")
+        print(f"👤 User data: {user_answers}")
+        print(f"{'='*100}\n")
         
         # First, get AI recommendations if not already available
         if 'recommendations' not in file_info:
@@ -966,7 +955,7 @@ def train_recommended_model():
         recommendations = file_info['recommendations']
         
         # Train the recommended model
-        training_results = ml_core.train_recommended_model(file_path, recommendations, user_answers)
+        training_results = ml_core.train_recommended_model(file_path, recommendations, user_answers, selected_columns if selected_columns else None)
         
         if training_results.get('success'):
             # Store training results
@@ -1041,6 +1030,9 @@ def train_specific_model_endpoint():
         file_path = file_info['file_path']
         user_answers = file_info['user_answers']
         
+        # Get selected columns from user answers
+        selected_columns = user_answers.get('selected_columns', [])
+        
         print(f"\n{'='*100}")
         print(f"🚀 TRAINING SPECIFIC MODEL ENDPOINT")
         print(f"{'='*100}")
@@ -1048,6 +1040,8 @@ def train_specific_model_endpoint():
         print(f"📂 File path: {file_path}")
         print(f"🎯 Model name: {model_name}")
         print(f"🎯 Target column: {target_column if target_column else 'Auto-detect (last column)'}")
+        print(f"📊 User selected columns: {selected_columns if selected_columns else 'All columns (no selection made)'}")
+        print(f"📊 Selected column count: {len(selected_columns) if selected_columns else 'N/A'}")
         print(f"👤 User data: {user_answers}")
         print(f"{'='*100}\n")
         
@@ -1056,7 +1050,8 @@ def train_specific_model_endpoint():
             file_path=file_path,
             model_name=model_name,
             user_data=user_answers,
-            target_column=target_column
+            target_column=target_column,
+            selected_columns=selected_columns if selected_columns else None
         )
         
         if training_results.get('success'):
@@ -1091,20 +1086,39 @@ def train_specific_model_endpoint():
                         # Determine target column
                         actual_target = target_column if target_column else df.columns[-1]
                         
-                        # Get feature names (all columns except target)
-                        feature_names = [col for col in df.columns if col != actual_target]
+                        print(f"\n🔍 FEATURE EXTRACTION PROCESS:")
+                        print(f"📊 Original dataset columns: {list(df.columns)}")
+                        print(f"🎯 Target column: {actual_target}")
+                        print(f"📋 User selected columns: {selected_columns if selected_columns else 'None (using all)'}")
+                        
+                        # Use selected columns if provided, otherwise use all columns except target
+                        if selected_columns:
+                            # Filter out target column from selected columns
+                            feature_names = [col for col in selected_columns if col != actual_target]
+                            print(f"✅ Using user-selected columns for training")
+                            print(f"📊 Training features (filtered): {feature_names}")
+                            print(f"🚫 Excluded from training: {[col for col in df.columns if col not in selected_columns or col == actual_target]}")
+                        else:
+                            feature_names = [col for col in df.columns if col != actual_target]
+                            print(f"ℹ️ No column selection - using all columns except target")
+                            print(f"📊 Training features (all): {feature_names}")
                         
                         feature_info = {
                             'feature_names': feature_names,
                             'target_column': actual_target,
                             'problem_type': training_results.get('problem_type', 'classification'),
                             'total_features': len(feature_names),
-                            'dataset_shape': df.shape
+                            'dataset_shape': df.shape,
+                            'selected_columns': selected_columns if selected_columns else [],
+                            'original_columns': list(df.columns),
+                            'excluded_columns': [col for col in df.columns if col not in (selected_columns or df.columns) or col == actual_target]
                         }
                         
-                        print(f"🔍 EXTRACTED FEATURE INFO:")
-                        print(f"📊 Features: {feature_names}")
-                        print(f"🎯 Target: {actual_target}")
+                        print(f"\n🔍 FINAL FEATURE INFO FOR FRONTEND:")
+                        print(f"📊 Training features sent to frontend: {feature_names}")
+                        print(f"🎯 Target column: {actual_target}")
+                        print(f"📋 Original dataset had {len(df.columns)} columns")
+                        print(f"✅ Training will use {len(feature_names)} features")
                         
                     except Exception as e:
                         print(f"⚠️ Feature extraction failed: {str(e)}")
@@ -1844,9 +1858,31 @@ def make_prediction():
             prediction_display = f"{cluster_prediction.get('cluster_label', f'Cluster {prediction}')} ({cluster_prediction.get('cluster_percentage', 0):.1f}% of data)"
             prediction_decoded = prediction_display
         else:
-            # For supervised models, use the prediction as-is
+            # For supervised models, try to decode the prediction if it's a classification task
             prediction_decoded = str(prediction)
             cluster_prediction = None
+            
+            # Try to load target encoder to convert numeric predictions back to original class labels
+            try:
+                preprocessing_artifacts = metadata.get('preprocessing_artifacts', {})
+                if preprocessing_artifacts.get('target_encoder'):
+                    target_encoder_path = os.path.join(model_folder, preprocessing_artifacts['target_encoder'])
+                    if os.path.exists(target_encoder_path):
+                        print(f"🔄 Loading target encoder from: {target_encoder_path}")
+                        target_encoder = joblib.load(target_encoder_path)
+                        
+                        # Convert numeric prediction back to original class label
+                        # Handle both single values and arrays
+                        if isinstance(prediction, (list, np.ndarray)):
+                            decoded_prediction = target_encoder.inverse_transform([int(prediction[0])])[0]
+                        else:
+                            decoded_prediction = target_encoder.inverse_transform([int(prediction)])[0]
+                        
+                        prediction_decoded = str(decoded_prediction)
+                        print(f"✅ Decoded prediction: {prediction} → {prediction_decoded}")
+            except Exception as e:
+                print(f"⚠️  Could not decode prediction using target encoder: {e}")
+                # Fall back to using numeric prediction
         
         return jsonify({
             'success': True,

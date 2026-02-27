@@ -23,6 +23,7 @@ interface TrainingResults {
   model_name?: string;
   main_score: number;
   threshold_met: boolean;
+  selected_columns?: string[];
   performance?: {
     model_name?: string;
     model_type?: string;
@@ -75,6 +76,7 @@ interface TrainingResults {
   feature_info?: {
     feature_names?: string[];
     original_feature_names?: string[];
+    selected_columns?: string[];
     target_column?: string;
     problem_type?: string;
     feature_count?: number;
@@ -363,30 +365,131 @@ function ResultsPageContent() {
 
   // Get feature names from training results
   const getFeatureNames = useCallback((): string[] => {
-    // Try multiple possible locations for feature names, prioritizing training_details
-    if (trainingResults?.training_details?.feature_names) {
-      return trainingResults.training_details.feature_names as string[];
-    }
-    if (trainingResults?.feature_info?.feature_names) {
-      return trainingResults.feature_info.feature_names as string[];
-    }
-    if (trainingResults?.feature_info?.original_feature_names) {
-      return trainingResults.feature_info.original_feature_names as string[];
-    }
-    if (trainingResults?.training_results?.feature_info?.feature_names) {
-      return trainingResults.training_results.feature_info.feature_names as string[];
-    }
-    if (trainingResults?.model_info?.feature_names) {
-      return trainingResults.model_info.feature_names as string[];
+    console.log('\n📊 EXTRACTING FEATURE NAMES FROM TRAINING RESULTS:');
+    console.log('🔍 Training Results Object:', trainingResults);
+    
+    // Priority 1: Check for selected_columns in feature_info (most reliable)
+    if (trainingResults?.feature_info?.selected_columns && Array.isArray(trainingResults.feature_info.selected_columns)) {
+      const selectedCols = trainingResults.feature_info.selected_columns as string[];
+      const targetCol = trainingResults.feature_info.target_column || trainingResults.training_details?.target_column;
+      
+      // Filter out target column from selected columns
+      const filteredFeatures = selectedCols.filter(col => col !== targetCol);
+      console.log('✅ Found selected_columns in feature_info:', selectedCols);
+      console.log('🎯 Target column:', targetCol);
+      console.log('🔧 Filtered features (without target):', filteredFeatures);
+      
+      if (filteredFeatures.length > 0) {
+        return filteredFeatures;
+      }
     }
     
-    // Generate generic feature names as fallback
+    // Priority 2: Check for selected_columns in root level
+    if (trainingResults?.selected_columns && Array.isArray(trainingResults.selected_columns)) {
+      const selectedCols = trainingResults.selected_columns as string[];
+      const targetCol = trainingResults.feature_info?.target_column || trainingResults.training_details?.target_column;
+      
+      const filteredFeatures = selectedCols.filter(col => col !== targetCol);
+      console.log('✅ Found selected_columns in root level:', selectedCols);
+      console.log('🎯 Target column:', targetCol);
+      console.log('🔧 Filtered features (without target):', filteredFeatures);
+      
+      if (filteredFeatures.length > 0) {
+        return filteredFeatures;
+      }
+    }
+    
+    // Priority 3: Use feature_names if available (filtered during training)
+    if (trainingResults?.training_details?.feature_names) {
+      const features = trainingResults.training_details.feature_names as string[];
+      console.log('✅ Found feature_names in training_details:', features);
+      return features;
+    }
+    if (trainingResults?.feature_info?.feature_names) {
+      const features = trainingResults.feature_info.feature_names as string[];
+      console.log('✅ Found feature_names in feature_info:', features);
+      return features;
+    }
+    if (trainingResults?.feature_info?.original_feature_names) {
+      const features = trainingResults.feature_info.original_feature_names as string[];
+      console.log('⚠️ Using original_feature_names as fallback:', features);
+      return features;
+    }
+    
+    // Priority 4: Check other possible locations
+    if (trainingResults?.training_results?.feature_info?.feature_names) {
+      const features = trainingResults.training_results.feature_info.feature_names as string[];
+      console.log('✅ Found feature_names in nested training_results:', features);
+      return features;
+    }
+    if (trainingResults?.model_info?.feature_names) {
+      const features = trainingResults.model_info.feature_names as string[];
+      console.log('✅ Found feature_names in model_info:', features);
+      return features;
+    }
+    
+    // Priority 5: Generate generic feature names as absolute fallback
     const featureCount = trainingResults?.training_details?.features || 
                         trainingResults?.model_info?.feature_count || 
                         trainingResults?.feature_info?.feature_names?.length || 4;
     
-    return Array.from({length: featureCount}, (_, i) => `Feature_${i + 1}`);
+    const genericFeatures = Array.from({length: featureCount}, (_, i) => `Feature_${i + 1}`);
+    console.log('⚠️ No specific feature names found, generating generic names:', genericFeatures);
+    
+    return genericFeatures;
   }, [trainingResults]);
+
+  // Get numeric columns from training results
+  const getNumericCols = useCallback((): string[] => {
+    const numericCols = (
+      trainingResults?.numeric_cols ||
+      trainingResults?.feature_info?.numeric_cols ||
+      trainingResults?.training_details?.numeric_cols ||
+      trainingResults?.result?.numeric_cols ||
+      trainingResults?.result?.feature_info?.numeric_cols ||
+      []
+    ) as string[];
+
+    if (numericCols.length > 0) {
+      console.log('🔢 Numeric columns found:', numericCols);
+    } else {
+      console.log('⚠️ No numeric columns found in training results');
+    }
+
+    return numericCols;
+  }, [trainingResults]);
+
+  // Check if a feature is numeric based on actual dataset info
+  const isNumeric = useCallback((featureName: string): boolean => {
+    const numericCols = getNumericCols();
+    
+    // Direct match (case-sensitive)
+    if (numericCols.includes(featureName)) {
+      console.log(`✅ "${featureName}" is numeric (direct match)`);
+      return true;
+    }
+    
+    // Case-insensitive match
+    const lowerFeatureName = featureName.toLowerCase();
+    const matchedCol = numericCols.find(col => col.toLowerCase() === lowerFeatureName);
+    if (matchedCol) {
+      console.log(`✅ "${featureName}" is numeric (case-insensitive match with "${matchedCol}")`);
+      return true;
+    }
+    
+    // Check if feature name partially matches any numeric column (handles variations)
+    const partialMatch = numericCols.some(col => {
+      const lowerCol = col.toLowerCase();
+      return lowerCol.includes(lowerFeatureName) || lowerFeatureName.includes(lowerCol);
+    });
+    if (partialMatch) {
+      console.log(`✅ "${featureName}" is numeric (partial match)`);
+      return true;
+    }
+
+    console.log(`❌ "${featureName}" is NOT numeric`);
+    return false;
+  }, [getNumericCols]);
 
   // Get categorical columns from training results
   const getCategoricalCols = useCallback((): string[] => {
@@ -493,10 +596,16 @@ function ResultsPageContent() {
   useEffect(() => {
     if (trainingResults) {
       const featureNames = getFeatureNames();
+      console.log('\n🔧 INITIALIZING PREDICTION FORM:');
+      console.log('📋 Features for prediction form:', featureNames);
+      console.log('📊 Number of features:', featureNames.length);
+      
       const initialFormData: Record<string, string> = {};
       featureNames.forEach(feature => {
         initialFormData[feature] = '';
       });
+      
+      console.log('🎛️ Initial form data structure:', Object.keys(initialFormData));
       setFormData(initialFormData);
     }
   }, [trainingResults, getFeatureNames]);
@@ -783,8 +892,46 @@ function ResultsPageContent() {
                       description="Clustering quality (higher is better)"
                     />
                   </div>
+                ) : trainingResults.feature_info?.problem_type === 'regression' || 
+                    trainingResults.performance?.r2_score !== undefined ||
+                    trainingResults.performance?.mse !== undefined ? (
+                  // Regression Metrics
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <MetricCard
+                      title="R² Score"
+                      value={trainingResults.performance?.r2_score}
+                      icon={TrendingUp}
+                      color="text-cyan-400"
+                      format="decimal"
+                      description="Coefficient of determination (1.0 is perfect)"
+                    />
+                    <MetricCard
+                      title="Root Mean Squared Error"
+                      value={trainingResults.performance?.rmse}
+                      icon={Target}
+                      color="text-orange-400"
+                      format="decimal"
+                      description="RMSE (lower is better)"
+                    />
+                    <MetricCard
+                      title="Mean Absolute Error"
+                      value={trainingResults.performance?.mae}
+                      icon={Target}
+                      color="text-yellow-400"
+                      format="decimal"
+                      description="MAE (lower is better)"
+                    />
+                    <MetricCard
+                      title="Mean Squared Error"
+                      value={trainingResults.performance?.mse}
+                      icon={TrendingUp}
+                      color="text-red-400"
+                      format="decimal"
+                      description="MSE (lower is better)"
+                    />
+                  </div>
                 ) : (
-                  // Supervised Metrics (Classification/Regression)
+                  // Classification Metrics
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                     <MetricCard
                       title="Test Accuracy"
@@ -1072,7 +1219,8 @@ function ResultsPageContent() {
                             .replace(/Cm/g, '(cm)') // Replace Cm with (cm)
                             .replace(/Id/g, 'ID'); // Replace Id with ID
                           
-                          const isCat = isCategorical(featureName);
+                          // Use actual dataset column type instead of heuristic
+                          const isNumericField = isNumeric(featureName);
                           
                           return (
                             <div key={featureName}>
@@ -1081,11 +1229,25 @@ function ResultsPageContent() {
                                 className="block text-lg font-bold text-gray-300 mb-3"
                               >
                                 {label}
-                                {isCat && (
+                                {!isNumericField && (
                                   <span className="ml-2 text-sm font-normal text-cyan-400">(Text)</span>
                                 )}
+                                {isNumericField && (
+                                  <span className="ml-2 text-sm font-normal text-green-400">(Number)</span>
+                                )}
                               </label>
-                              {isCat ? (
+                              {isNumericField ? (
+                                <input
+                                  type="number"
+                                  id={featureName}
+                                  step="0.1"
+                                  value={formData[featureName] || ''}
+                                  onChange={(e) => handleInputChange(featureName, e.target.value)}
+                                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-green-400 focus:border-transparent transition-all duration-200"
+                                  placeholder="Enter numeric value..."
+                                  required
+                                />
+                              ) : (
                                 <input
                                   type="text"
                                   id={featureName}
@@ -1093,17 +1255,6 @@ function ResultsPageContent() {
                                   onChange={(e) => handleInputChange(featureName, e.target.value)}
                                   className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all duration-200"
                                   placeholder="Enter text value..."
-                                  required
-                                />
-                              ) : (
-                                <input
-                                  type="number"
-                                  id={featureName}
-                                  step="0.1"
-                                  value={formData[featureName] || ''}
-                                  onChange={(e) => handleInputChange(featureName, e.target.value)}
-                                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-xl text-white text-lg focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all duration-200"
-                                  placeholder="Enter numeric value..."
                                   required
                                 />
                               )}
@@ -1249,6 +1400,32 @@ function ResultsPageContent() {
                               <span className="font-medium text-gray-300">Status:</span>
                               <span className="ml-2 font-medium text-green-400">
                                 ✅ Clustering Complete
+                              </span>
+                            </div>
+                          </>
+                        ) : trainingResults.feature_info?.problem_type === 'regression' || 
+                            trainingResults.performance?.r2_score !== undefined ? (
+                          <>
+                            <div>
+                              <span className="font-medium text-gray-300">R² Score:</span>
+                              <span className="ml-2 text-cyan-400 font-bold">
+                                {trainingResults.performance?.r2_score !== undefined
+                                  ? trainingResults.performance.r2_score.toFixed(4)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-300">RMSE:</span>
+                              <span className="ml-2 text-orange-400 font-bold">
+                                {trainingResults.performance?.rmse !== undefined
+                                  ? trainingResults.performance.rmse.toFixed(4)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-300">Status:</span>
+                              <span className="ml-2 font-medium text-green-400">
+                                ✅ Regression Complete
                               </span>
                             </div>
                           </>
