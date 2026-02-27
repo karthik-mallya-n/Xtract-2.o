@@ -1864,22 +1864,53 @@ def make_prediction():
             
             # Try to load target encoder to convert numeric predictions back to original class labels
             try:
+                target_encoder_path = None
+
+                # Format A: metadata['preprocessing_artifacts']['target_encoder']
                 preprocessing_artifacts = metadata.get('preprocessing_artifacts', {})
                 if preprocessing_artifacts.get('target_encoder'):
-                    target_encoder_path = os.path.join(model_folder, preprocessing_artifacts['target_encoder'])
-                    if os.path.exists(target_encoder_path):
-                        print(f"🔄 Loading target encoder from: {target_encoder_path}")
-                        target_encoder = joblib.load(target_encoder_path)
-                        
-                        # Convert numeric prediction back to original class label
-                        # Handle both single values and arrays
-                        if isinstance(prediction, (list, np.ndarray)):
-                            decoded_prediction = target_encoder.inverse_transform([int(prediction[0])])[0]
-                        else:
-                            decoded_prediction = target_encoder.inverse_transform([int(prediction)])[0]
-                        
-                        prediction_decoded = str(decoded_prediction)
-                        print(f"✅ Decoded prediction: {prediction} → {prediction_decoded}")
+                    candidate = os.path.join(model_folder, preprocessing_artifacts['target_encoder'])
+                    if os.path.exists(candidate):
+                        target_encoder_path = candidate
+
+                # Format B: metadata['artifacts']['target_encoder']
+                if target_encoder_path is None:
+                    artifacts = metadata.get('artifacts', {})
+                    if artifacts.get('target_encoder'):
+                        candidate = os.path.join(model_folder, artifacts['target_encoder'])
+                        if os.path.exists(candidate):
+                            target_encoder_path = candidate
+
+                # Format C: infer from metadata timestamp
+                if target_encoder_path is None:
+                    model_timestamp = metadata.get('timestamp')
+                    if model_timestamp:
+                        candidate = os.path.join(model_folder, f"target_encoder_{model_timestamp}.joblib")
+                        if os.path.exists(candidate):
+                            target_encoder_path = candidate
+
+                # Format D: fallback to latest target_encoder file in the model folder
+                if target_encoder_path is None:
+                    encoder_files = glob.glob(os.path.join(model_folder, 'target_encoder_*.joblib'))
+                    if encoder_files:
+                        encoder_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+                        target_encoder_path = encoder_files[0]
+
+                if target_encoder_path is not None:
+                    print(f"🔄 Loading target encoder from: {target_encoder_path}")
+                    target_encoder = joblib.load(target_encoder_path)
+
+                    # Convert numeric prediction back to original class label
+                    if isinstance(prediction, (list, np.ndarray)):
+                        prediction_value = prediction[0]
+                    else:
+                        prediction_value = prediction
+
+                    decoded_prediction = target_encoder.inverse_transform([int(prediction_value)])[0]
+                    prediction_decoded = str(decoded_prediction)
+                    print(f"✅ Decoded prediction: {prediction} → {prediction_decoded}")
+                else:
+                    print("⚠️  Target encoder not found; returning raw prediction label")
             except Exception as e:
                 print(f"⚠️  Could not decode prediction using target encoder: {e}")
                 # Fall back to using numeric prediction
