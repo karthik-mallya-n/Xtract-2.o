@@ -8,6 +8,8 @@ import sys
 import uuid
 import json
 import traceback
+import time
+import numpy as np
 import pandas as pd
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -56,6 +58,28 @@ def allowed_file(filename):
 
 # Global storage for file metadata (in production, use a database)
 uploaded_files = {}
+
+def to_json_safe(obj):
+    """Recursively convert numpy/pandas objects to JSON-serializable Python types."""
+    if isinstance(obj, dict):
+        return {str(k): to_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [to_json_safe(v) for v in obj]
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return float(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return [to_json_safe(v) for v in obj.tolist()]
+    if isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
+    if obj is pd.NA:
+        return None
+    return obj
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -288,6 +312,7 @@ def recommend_model():
         file_info = uploaded_files[file_id]
         file_path = file_info['file_path']
         user_answers = file_info['user_answers']
+        cached_recommendation = file_info.get('recommendation_cache')
 
         # Analyze the dataset with guard
         try:
@@ -304,8 +329,28 @@ def recommend_model():
         else:
             analysis_warning = None
 
-        # Attempt LLM recommendations
+        # Attempt LLM recommendations (with one retry for transient API/parse failures)
         llm_response = ml_core.make_llm_request(user_answers, dataset_analysis)
+        if not llm_response.get('success', False):
+            first_error = llm_response.get('error', 'Unknown LLM error')
+            first_error_lower = first_error.lower()
+            should_retry = not any(token in first_error_lower for token in ['quota', 'rate limit', '429', 'api key', '403', 'unauthorized'])
+
+            if should_retry:
+                print(f"⚠️ First LLM recommendation attempt failed: {first_error}. Retrying once...")
+                time.sleep(0.8)
+                retry_response = ml_core.make_llm_request(user_answers, dataset_analysis)
+                if retry_response.get('success', False):
+                    llm_response = retry_response
+                    print("✅ LLM recommendation retry succeeded")
+                else:
+                    second_error = retry_response.get('error', 'Unknown LLM error')
+                    llm_response = {
+                        **retry_response,
+                        'error': f"First attempt: {first_error}; Retry: {second_error}"
+                    }
+            else:
+                print(f"⚠️ Skipping retry due to quota/auth issue: {first_error}")
 
         warnings = []
         if analysis_warning:
@@ -358,6 +403,16 @@ def recommend_model():
                         'accuracy_estimate': 82
                     },
                     {
+                        'name': 'Neural Network',
+                        'description': 'Multi-layer perceptron model for non-linear decision boundaries in tabular data.',
+                        'accuracy_estimate': 84
+                    },
+                    {
+                        'name': 'Deep Neural Network',
+                        'description': 'Deeper neural architecture for complex feature interactions and richer pattern learning.',
+                        'accuracy_estimate': 86
+                    },
+                    {
                         'name': 'Logistic Regression',
                         'description': 'Interpretable linear baseline useful for quick iteration.',
                         'accuracy_estimate': 78
@@ -365,14 +420,40 @@ def recommend_model():
                 ]
             }
 
+        used_fallback = False
+        used_cached_recommendation = False
+
         if not llm_response.get('success', False):
             error_msg = llm_response.get('error', 'LLM recommendation failed')
             warnings.append(f"AI recommendation failed: {error_msg}")
-            print(f"⚠️ Using fallback recommendations due to AI failure: {error_msg}")
-            recommendations = backend_fallback
-            raw_llm_response = ''
-            scenario_info = None
-            semantic_analysis = None
+            error_msg_lower = error_msg.lower()
+            is_rate_or_auth_issue = any(token in error_msg_lower for token in [
+                'quota', 'rate limit', '429', 'api key', '403', 'permission denied', 'unauthorized'
+            ])
+
+            if cached_recommendation and cached_recommendation.get('recommendations'):
+                print(f"⚠️ LLM failed, using cached recommendations for file {file_id}: {error_msg}")
+                warnings.append("Using cached AI recommendations from a previous successful analysis.")
+                recommendations = cached_recommendation.get('recommendations', backend_fallback)
+                raw_llm_response = cached_recommendation.get('raw_llm_response', '')
+                scenario_info = recommendations.get('scenario_detected') if isinstance(recommendations, dict) else None
+                semantic_analysis = recommendations.get('semantic_analysis') if isinstance(recommendations, dict) else None
+                used_cached_recommendation = True
+            elif is_rate_or_auth_issue:
+                # Avoid silently showing fallback when AI is unavailable due to quota/auth errors
+                return jsonify({
+                    'success': False,
+                    'error': 'AI recommendations are temporarily unavailable (quota/auth issue). Please retry shortly or update the Gemini API key/quota settings.',
+                    'details': error_msg,
+                    'file_id': file_id
+                }), 503
+            else:
+                print(f"⚠️ Using fallback recommendations due to AI failure: {error_msg}")
+                recommendations = backend_fallback
+                raw_llm_response = ''
+                scenario_info = None
+                semantic_analysis = None
+                used_fallback = True
         else:
             # Handle the new comprehensive JSON structure
             recs = llm_response.get('recommendations') or {}
@@ -462,9 +543,22 @@ def recommend_model():
                         alt_model['id'] = f"fallback_{i+1}_{alt_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace(',', '').replace('-', '_')}"
                         alt_model['rank'] = i + 2
                     
+                    warnings.append("AI response did not contain usable model recommendations. Using backend fallback.")
+                    print("⚠️ Using fallback recommendations due to empty/invalid LLM recommendation structure")
                     recommendations = backend_fallback
+                    used_fallback = True
                     
             raw_llm_response = llm_response.get('raw_response', '')
+
+        # Cache successful AI-backed recommendations per file to avoid repeated LLM calls and transient fallback
+        if not used_fallback and not used_cached_recommendation and isinstance(recommendations, dict):
+            has_models = bool(recommendations.get('recommended_models') or recommendations.get('alternative_models'))
+            if has_models:
+                file_info['recommendation_cache'] = {
+                    'recommendations': recommendations,
+                    'raw_llm_response': raw_llm_response,
+                    'cached_at': datetime.now().isoformat()
+                }
 
         response_data = {
             'success': True,
@@ -478,6 +572,7 @@ def recommend_model():
             'user_answers': user_answers,
             'recommendations': recommendations,
             'raw_llm_response': raw_llm_response,
+            'recommendation_source': 'cached' if used_cached_recommendation else ('fallback' if used_fallback else 'llm'),
             'warnings': warnings if warnings else None
         }
 
@@ -668,7 +763,7 @@ def start_training():
         # Store training info
         file_info['training_completed'] = datetime.now().isoformat()
         file_info['selected_model'] = model_name
-        file_info['training_result'] = result
+        file_info['training_result'] = to_json_safe(result)
         
         print(f"\n{'='*100}")
         print(f"✅ TRAINING API ENDPOINT COMPLETE")
@@ -814,7 +909,7 @@ def start_training():
         else:
             formatted_result = result
         
-        return jsonify({
+        return jsonify(to_json_safe({
             'success': True,
             'file_id': file_id,
             'model_name': model_name,
@@ -828,7 +923,7 @@ def start_training():
             'feature_info': feature_info,
             'result': formatted_result,  # Keep the original nested structure for backward compatibility
             'message': 'Training completed successfully!' + (' (Unsupervised)' if is_unsupervised_result else '')
-        })
+        }))
     
     except Exception as e:
         print(f"Training error: {str(e)}")

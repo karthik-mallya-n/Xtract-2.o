@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.svm import SVC, SVR
+from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.metrics import accuracy_score, mean_squared_error, classification_report, mean_absolute_error, r2_score
 import joblib
 
@@ -236,11 +237,11 @@ Your task is to analyze this dataset and provide comprehensive model recommendat
 
 ≡ƒÄ» **Scenario 1: Labeled + Continuous (Regression)**
 Task: Predict a continuous numerical value
-ALL Models: Linear Regression, Lasso Regression, Ridge Regression, ElasticNet, Support Vector Regression (SVR), K-Nearest Neighbors (KNN) Regressor, Decision Tree Regressor, Random Forest Regressor, Gradient Boosting Regressor, XGBoost Regressor, LightGBM Regressor, CatBoost Regressor, Neural Networks (MLP Regressor)
+ALL Models: Linear Regression, Lasso Regression, Ridge Regression, ElasticNet, Support Vector Regression (SVR), K-Nearest Neighbors (KNN) Regressor, Decision Tree Regressor, Random Forest Regressor, Gradient Boosting Regressor, XGBoost Regressor, LightGBM Regressor, CatBoost Regressor, Neural Networks (MLP Regressor), Deep Neural Network (DNN Regressor)
 
 ≡ƒÅ╖∩╕Å **Scenario 2: Labeled + Categorical (Classification)**  
 Task: Predict a discrete class label
-ALL Models: Logistic Regression, Support Vector Machines (SVM), K-Nearest Neighbors (KNN) Classifier, Naive Bayes, Decision Tree Classifier, Random Forest Classifier, Gradient Boosting Classifier, XGBoost Classifier, LightGBM Classifier, CatBoost Classifier, Neural Networks (MLP Classifier)
+ALL Models: Logistic Regression, Support Vector Machines (SVM), K-Nearest Neighbors (KNN) Classifier, Naive Bayes, Decision Tree Classifier, Random Forest Classifier, Gradient Boosting Classifier, XGBoost Classifier, LightGBM Classifier, CatBoost Classifier, Neural Networks (MLP Classifier), Deep Neural Network (DNN Classifier)
 
 ≡ƒº⌐ **Scenario 3: Unlabeled + Continuous (Clustering/Dimensionality Reduction)**
 Task: Find hidden groups or simplify data
@@ -378,6 +379,13 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     parts = cleaned_response.split("```")
                     if len(parts) >= 3:
                         cleaned_response = parts[1]
+
+                # If model wrapped JSON with prose, extract the first JSON object block
+                if cleaned_response and not cleaned_response.lstrip().startswith('{'):
+                    first_brace = cleaned_response.find('{')
+                    last_brace = cleaned_response.rfind('}')
+                    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                        cleaned_response = cleaned_response[first_brace:last_brace + 1]
                 
                 # Try to fix incomplete JSON by adding missing parts
                 if cleaned_response and not cleaned_response.endswith('}'):
@@ -484,9 +492,9 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                 
             except json.JSONDecodeError as e:
                 print(f"ΓÜá∩╕Å JSON parsing failed: {str(e)}")
-                print(f"≡ƒôä Returning raw response")
+                print(f"≡ƒôä Returning parse failure so caller can retry/fallback explicitly")
                 return {
-                    'success': True,
+                    'success': False,
                     'recommendations': {},
                     'raw_response': raw_response,
                     'error': f'Failed to parse JSON: {str(e)}'
@@ -1335,6 +1343,28 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
         if is_classification:
             if 'random forest' in model_name_lower:
                 return RandomForestClassifier(n_estimators=100, random_state=42)
+            elif 'deep neural' in model_name_lower or 'dnn' in model_name_lower:
+                return MLPClassifier(
+                    hidden_layer_sizes=(256, 128, 64),
+                    activation='relu',
+                    solver='adam',
+                    alpha=0.0005,
+                    learning_rate='adaptive',
+                    early_stopping=True,
+                    max_iter=1200,
+                    random_state=42
+                )
+            elif 'neural' in model_name_lower or 'mlp' in model_name_lower:
+                return MLPClassifier(
+                    hidden_layer_sizes=(128, 64),
+                    activation='relu',
+                    solver='adam',
+                    alpha=0.001,
+                    learning_rate='adaptive',
+                    early_stopping=True,
+                    max_iter=1000,
+                    random_state=42
+                )
             elif 'logistic regression' in model_name_lower:
                 return LogisticRegression(random_state=42, max_iter=1000)
             elif 'svm' in model_name_lower or 'support vector' in model_name_lower:
@@ -1345,6 +1375,28 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
         else:
             if 'random forest' in model_name_lower:
                 return RandomForestRegressor(n_estimators=100, random_state=42)
+            elif 'deep neural' in model_name_lower or 'dnn' in model_name_lower:
+                return MLPRegressor(
+                    hidden_layer_sizes=(256, 128, 64),
+                    activation='relu',
+                    solver='adam',
+                    alpha=0.0005,
+                    learning_rate='adaptive',
+                    early_stopping=True,
+                    max_iter=1200,
+                    random_state=42
+                )
+            elif 'neural' in model_name_lower or 'mlp' in model_name_lower:
+                return MLPRegressor(
+                    hidden_layer_sizes=(128, 64),
+                    activation='relu',
+                    solver='adam',
+                    alpha=0.001,
+                    learning_rate='adaptive',
+                    early_stopping=True,
+                    max_iter=1000,
+                    random_state=42
+                )
             elif 'linear regression' in model_name_lower:
                 return LinearRegression()
             elif 'svm' in model_name_lower or 'support vector' in model_name_lower:
@@ -1724,8 +1776,11 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
             'logistic_regression': LogisticRegression,
             'linear_regression': LinearRegression,
             'neural_network': MLPClassifier,
+            'deep_neural_network': MLPClassifier,
+            'dnn_classifier': MLPClassifier,
             'mlp_classifier': MLPClassifier,
             'mlp_regressor': MLPRegressor,
+            'dnn_regressor': MLPRegressor,
             'naive_bayes': GaussianNB,
             'decision_tree': DecisionTreeClassifier,
             'decision_tree_classifier': DecisionTreeClassifier,
@@ -2342,6 +2397,9 @@ print("\\nΓ£à Clustering analysis completed!")
             "Logistic Regression": "Logistic Regression",
             "neural-network-classifier": "Neural Network",
             "Neural Networks (MLP Classifier)": "Neural Network",
+            "deep-neural-network-classifier": "Deep Neural Network",
+            "Deep Neural Network (DNN Classifier)": "Deep Neural Network",
+            "DNN Classifier": "Deep Neural Network",
             "knn-classifier": "K-Neighbors",
             "K-Nearest Neighbors (KNN) Classifier": "K-Neighbors", 
             "decision-tree-classifier": "Decision Tree",
@@ -2374,6 +2432,9 @@ print("\\nΓ£à Clustering analysis completed!")
             "Gradient Boosting Regressor": "Gradient Boosting Regressor",
             "neural-network-regressor": "Neural Network Regressor",
             "Neural Networks (MLP Regressor)": "Neural Network Regressor",
+            "deep-neural-network-regressor": "Deep Neural Network Regressor",
+            "Deep Neural Network (DNN Regressor)": "Deep Neural Network Regressor",
+            "DNN Regressor": "Deep Neural Network Regressor",
             
             # Clustering models
             "KMeans": "KMeans",
@@ -2402,6 +2463,8 @@ print("\\nΓ£à Clustering analysis completed!")
             return "Support Vector Regressor" if "regressor" in recommendation_lower else "Support Vector Machine"
         elif "logistic" in recommendation_lower:
             return "Logistic Regression"
+        elif "deep neural" in recommendation_lower or "dnn" in recommendation_lower:
+            return "Deep Neural Network Regressor" if "regressor" in recommendation_lower else "Deep Neural Network"
         elif "neural" in recommendation_lower or "mlp" in recommendation_lower:
             return "Neural Network Regressor" if "regressor" in recommendation_lower else "Neural Network"
         elif "decision" in recommendation_lower and "tree" in recommendation_lower:
@@ -3038,9 +3101,9 @@ print("\\nΓ£à Clustering analysis completed!")
         
         Supports:
         - Classification: Random Forest, XGBoost, LightGBM, CatBoost, SVM, Logistic Regression, 
-                         Neural Network, KNN, Decision Tree, Gradient Boosting, Naive Bayes
+                 Neural Network, Deep Neural Network, KNN, Decision Tree, Gradient Boosting, Naive Bayes
         - Regression: Random Forest, XGBoost, LightGBM, CatBoost, SVR, Linear Regression,
-                     Ridge, Lasso, ElasticNet, Neural Network, Gradient Boosting
+                 Ridge, Lasso, ElasticNet, Neural Network, Deep Neural Network, Gradient Boosting
         - Clustering: KMeans, DBSCAN, Hierarchical Clustering
         
         Args:
@@ -3162,11 +3225,23 @@ print("\\nΓ£à Clustering analysis completed!")
                 }
                 print(f"   Γ£à Logistic Regression configured")
                 
+            # Deep Neural Network (DNN)
+            elif 'deep neural' in model_name_lower or 'dnn' in model_name_lower:
+                model = MLPClassifier(random_state=42, max_iter=1200, early_stopping=True)
+                param_grid = {
+                    'model__hidden_layer_sizes': [(256, 128, 64), (128, 64, 32), (256, 128)],
+                    'model__activation': ['relu', 'tanh'],
+                    'model__alpha': [0.0001, 0.0005, 0.001],
+                    'model__learning_rate_init': [0.0005, 0.001, 0.005],
+                    'model__learning_rate': ['adaptive']
+                }
+                print(f"   ✅ Deep Neural Network Classifier configured")
+
             # Neural Network (MLP)
             elif 'neural' in model_name_lower or 'mlp' in model_name_lower:
-                model = MLPClassifier(random_state=42, max_iter=1000)
+                model = MLPClassifier(random_state=42, max_iter=1000, early_stopping=True)
                 param_grid = {
-                    'model__hidden_layer_sizes': [(50,), (100,), (50, 50), (100, 50)],
+                    'model__hidden_layer_sizes': [(64,), (100,), (128, 64)],
                     'model__activation': ['relu', 'tanh'],
                     'model__alpha': [0.0001, 0.001, 0.01],
                     'model__learning_rate': ['constant', 'adaptive']
@@ -3362,11 +3437,23 @@ print("\\nΓ£à Clustering analysis completed!")
                 }
                 print(f"   Γ£à Gradient Boosting Regressor configured")
                 
+            # Deep Neural Network Regressor
+            elif 'deep neural' in model_name_lower or 'dnn' in model_name_lower:
+                model = MLPRegressor(random_state=42, max_iter=1200, early_stopping=True)
+                param_grid = {
+                    'model__hidden_layer_sizes': [(256, 128, 64), (128, 64, 32), (256, 128)],
+                    'model__activation': ['relu', 'tanh'],
+                    'model__alpha': [0.0001, 0.0005, 0.001],
+                    'model__learning_rate_init': [0.0005, 0.001, 0.005],
+                    'model__learning_rate': ['adaptive']
+                }
+                print(f"   ✅ Deep Neural Network Regressor configured")
+
             # Neural Network Regressor
             elif 'neural' in model_name_lower or 'mlp' in model_name_lower:
-                model = MLPRegressor(random_state=42, max_iter=1000)
+                model = MLPRegressor(random_state=42, max_iter=1000, early_stopping=True)
                 param_grid = {
-                    'model__hidden_layer_sizes': [(50,), (100,), (50, 50), (100, 50)],
+                    'model__hidden_layer_sizes': [(64,), (100,), (128, 64)],
                     'model__activation': ['relu', 'tanh'],
                     'model__alpha': [0.0001, 0.001, 0.01],
                     'model__learning_rate': ['constant', 'adaptive']

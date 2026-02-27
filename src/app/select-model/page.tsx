@@ -215,10 +215,24 @@ export default function SelectModelPage() {
 
       try {
         console.log('🚀 Making single request to get model recommendations');
-        const response = await apiClient.getModelRecommendations(storedFileId);
-        
-        if (response.success) {
+        const hasAnyModels = (response: ModelRecommendation) => {
+          const recommendedCount = response.recommendations?.recommended_models?.length || 0;
+          const alternativeCount = response.recommendations?.alternative_models?.length || 0;
+          return recommendedCount + alternativeCount > 0;
+        };
+
+        let response = await apiClient.getModelRecommendations(storedFileId);
+
+        if (response.success && !hasAnyModels(response)) {
+          console.warn('⚠️ Empty recommendations received; retrying once...');
+          await new Promise((resolve) => setTimeout(resolve, 700));
+          response = await apiClient.getModelRecommendations(storedFileId);
+        }
+
+        if (response.success && hasAnyModels(response)) {
           setRecommendations(response);
+        } else if (response.success) {
+          setError('Model recommendations are temporarily unavailable. Please retry analysis.');
         } else {
           setError(response.error || 'Failed to get model recommendations');
         }
@@ -280,42 +294,10 @@ export default function SelectModelPage() {
     }
   };
 
-  // Fallback models for when LLM is not available
-  const fallbackModels = [
-    {
-      id: 'random-forest',
-      name: 'Random Forest',
-      description: 'Ensemble learning method that constructs multiple decision trees. Perfect for complex patterns and high accuracy.',
-      accuracy: 87,
-      isRecommended: true,
-    },
-    {
-      id: 'svm',
-      name: 'Support Vector Machine',
-      description: 'Advanced algorithm for classification and regression. Excels with high-dimensional data and complex boundaries.',
-      accuracy: 84,
-      isRecommended: false,
-    },
-    {
-      id: 'gradient-boosting',
-      name: 'Gradient Boosting',
-      description: 'Sequential ensemble method building models iteratively. State-of-the-art performance for structured data.',
-      accuracy: 89,
-      isRecommended: false,
-    },
-    {
-      id: 'neural-network',
-      name: 'Neural Network',
-      description: 'Deep learning approach mimicking brain neurons. Excellent for pattern recognition and complex relationships.',
-      accuracy: 91,
-      isRecommended: false,
-    },
-  ];
-
-  // Combine API recommendations with fallback models
+  // Display backend recommendations only
   const getModelsToDisplay = () => {
     if (!recommendations || !recommendations.recommendations) {
-      return fallbackModels;
+      return [];
     }
 
     const apiModels = [
@@ -335,7 +317,7 @@ export default function SelectModelPage() {
       })),
     ];
 
-    return apiModels.length > 0 ? apiModels : fallbackModels;
+    return apiModels;
   };
 
   const models = getModelsToDisplay();
