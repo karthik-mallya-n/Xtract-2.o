@@ -1090,7 +1090,8 @@ REMEMBER: Include ALL models from the detected scenario, not just the top few. T
                     original_name=model_name,
                     file_path=file_path,
                     target_column=target_column,
-                    selected_columns=selected_columns
+                    selected_columns=selected_columns,
+                    user_data=user_data
                 )
                 
                 if realistic_result['success']:
@@ -2499,7 +2500,7 @@ print("\\nΓ£à Clustering analysis completed!")
         print(f"ΓÜá∩╕Å  No mapping found for model '{recommendation_model_name}', using original name")
         return recommendation_model_name
 
-    def _execute_pipeline_training(self, model_name: str, original_name: str, file_path: str, target_column: str = None, selected_columns: List[str] = None) -> Dict[str, Any]:
+    def _execute_pipeline_training(self, model_name: str, original_name: str, file_path: str, target_column: str = None, selected_columns: List[str] = None, user_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Execute comprehensive model-specific training with realistic timing and high accuracy
         
@@ -2508,9 +2509,13 @@ print("\\nΓ£à Clustering analysis completed!")
         - Comprehensive preprocessing pipeline 
         - Realistic training times (30-120 seconds depending on model complexity)
         - Detailed progress logging with step-by-step tracking
-        - High accuracy targeting with intelligent retraining
+        - Respect for user's explicit data_type choice (continuous vs categorical)
+        - Proper target variable encoding for classification models
         
         NOTE: This method is ONLY for labeled (supervised) data. For unlabeled data, use _train_unsupervised_model instead.
+        
+        Args:
+            user_data: Dictionary containing user-provided problem information (is_labeled, data_type)
         """
         import pandas as pd
         import numpy as np
@@ -2558,17 +2563,38 @@ print("\\nΓ£à Clustering analysis completed!")
             print(f"   ≡ƒôè Missing values: {missing_total} ({missing_total/len(df)*100:.2f}%)")
             print(f"   ≡ƒôè Duplicate rows: {duplicate_total} ({duplicate_total/len(df)*100:.2f}%)")
             
-            # Determine problem type
+            # Determine problem type - RESPECT USER'S EXPLICIT CHOICE ≡ƒöì
             unique_targets = df[target_column].nunique()
             target_dtype = df[target_column].dtype
             
-            is_classification = (
-                target_dtype in ['object', 'bool', 'category'] or
-                (target_dtype in ['int64', 'int32'] and unique_targets <= 50) or
-                (unique_targets <= 20 and len(df) > 100)
-            )
+            # Check user's explicit data_type choice
+            user_data = user_data or {}
+            explicit_data_type = user_data.get('data_type', '').lower() if user_data else ''
             
-            scenario = "classification" if is_classification else "regression"
+            # DEBUG: Log what we received
+            print(f"   ≡ƒöì DEBUG: user_data = {user_data}")
+            print(f"   ≡ƒöì DEBUG: explicit_data_type = '{explicit_data_type}'")
+            print(f"   ≡ƒöì DEBUG: unique_targets = {unique_targets}, target_dtype = {target_dtype}")
+            
+            if explicit_data_type == 'continuous':
+                # User explicitly said continuous - use regression
+                is_classification = False
+                scenario = "regression"
+                print(f"   ≡ƒöì User explicitly selected 'continuous' data type - FORCING REGRESSION")
+            elif explicit_data_type in ['categorical', 'classification']:
+                # User explicitly said categorical/classification
+                is_classification = True
+                scenario = "classification"
+                print(f"   ≡ƒöì User explicitly selected 'categorical' data type - FORCING CLASSIFICATION")
+            else:
+                # Auto-detect if no explicit choice
+                is_classification = (
+                    target_dtype in ['object', 'bool', 'category'] or
+                    (target_dtype in ['int64', 'int32'] and unique_targets <= 50) or
+                    (unique_targets <= 20 and len(df) > 100)
+                )
+                scenario = "classification" if is_classification else "regression"
+                print(f"   ≡ƒöì Auto-detected problem type: {scenario.upper()}")
             
             print(f"\n≡ƒÄ» PROBLEM TYPE ANALYSIS:")
             print(f"   ≡ƒôï Problem type: {scenario.upper()}")
@@ -2646,12 +2672,51 @@ print("\\nΓ£à Clustering analysis completed!")
             
             preprocessor = ColumnTransformer(preprocessor_steps)
             
-            # Handle target encoding
+            # Handle target encoding for classification - ENSURE 0-INDEXED CLASSES ≡ƒöì
             target_encoder = None
-            if scenario == "classification" and y.dtype == 'object':
-                target_encoder = LabelEncoder()
-                y = target_encoder.fit_transform(y)
-                print(f"   Γ£à Target encoded from categorical to numeric")
+            if scenario == "classification":
+                # For classification, ensure class labels are 0-indexed (0, 1, 2, ..., n_classes-1)
+                # This is critical for XGBoost and other classifiers that expect 0-indexed classes
+                unique_classes = np.unique(y)
+                
+                if y.dtype == 'object':
+                    # String/object target - use LabelEncoder
+                    target_encoder = LabelEncoder()
+                    y_encoded = target_encoder.fit_transform(y)
+                    y = y_encoded
+                    print(f"   Γ£à Target encoded from categorical to numeric: {unique_classes[:5]} -> {np.unique(y)[:5]}")
+                elif y.dtype in ['int64', 'int32', 'int', 'int8', 'int16']:
+                    # Numeric target - check if it's 0-indexed
+                    min_class = int(unique_classes.min())
+                    max_class = int(unique_classes.max())
+                    n_classes = len(unique_classes)
+                    
+                    # If classes are not 0-indexed (e.g., 3,4,5,6,7,8 instead of 0,1,2,3,4,5),
+                    # we need to re-map them
+                    if min_class != 0 or max_class != n_classes - 1:
+                        print(f"   ΓÜá∩╕Å  WARNING: Class labels not 0-indexed: {sorted(unique_classes)} (expected: 0-{n_classes-1})")
+                        print(f"   ≡ƒöä Re-mapping class labels to 0-indexed values...")
+                        
+                        # Create mapping from original to 0-indexed
+                        class_mapping = {original_class: new_index for new_index, original_class in enumerate(sorted(unique_classes))}
+                        y = pd.Series(y).map(class_mapping).values
+                        
+                        print(f"   Γ£à Class mapping: {class_mapping}")
+                        print(f"   Γ£à Re-mapped class labels: {sorted(np.unique(y))}")
+                    else:
+                        print(f"   Γ£à Class labels already 0-indexed: {sorted(unique_classes)}")
+                else:
+                    # Float target - round to nearest integer
+                    print(f"   ≡ƒöä Converting float target to integer for classification")
+                    y = y.astype(int)
+                    unique_classes = np.unique(y)
+                    min_class = int(unique_classes.min())
+                    max_class = int(unique_classes.max())
+                    n_classes = len(unique_classes)
+                    if min_class != 0 or max_class != n_classes - 1:
+                        class_mapping = {original_class: new_index for new_index, original_class in enumerate(sorted(unique_classes))}
+                        y = pd.Series(y).map(class_mapping).values
+                        print(f"   Γ£à Class mapping applied: {class_mapping}")
             
             # 3. Train-Test Split
             print(f"\n≡ƒôè STEP 3: DATA SPLITTING")

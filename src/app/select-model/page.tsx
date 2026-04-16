@@ -274,14 +274,23 @@ export default function SelectModelPage() {
     try {
       console.log('Starting training for:', modelName);
       
+      // 🔧 CLEAR OLD TRAINING RESULTS BEFORE STARTING NEW TRAINING
+      // This prevents the results page from loading stale data from a previous training
+      localStorage.removeItem('trainingResults');
+      console.log('🧹 Cleared old training results from localStorage');
+      
       const response = await apiClient.startTraining(fileId, modelName);
       
       if (response.success && response.result) {
         const completeResults = {
           ...response.result,
-          feature_info: response.feature_info
+          feature_info: response.feature_info,
+          fileId: fileId  // 🔧 STORE FILE_ID WITH RESULTS FOR VERIFICATION
         };
         localStorage.setItem('trainingResults', JSON.stringify(completeResults));
+        
+        // 🔧 ALSO STORE CURRENT FILE_ID AS LAST TRAINED MODEL
+        localStorage.setItem('lastTrainedFileId', fileId);
         
         router.push('/results');
       } else {

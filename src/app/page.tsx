@@ -59,18 +59,18 @@ export default function Home() {
             <div className="text-center" style={{display: 'flex', flexDirection: 'column', gap: '50px'}}>
               
               {/* Hero Badge */}
-              <motion.div
+              {/* <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
                 className="flex justify-center"
-              >
-                <div className="inline-flex w-auto items-center rounded-xl border border-cyan-500/30 bg-gray-800/50 backdrop-blur-xl" style={{paddingLeft: '20px', paddingRight: '20px'}}>
-                  <Sparkles className="h-14 w-4 text-cyan-400" style={{marginRight: '8px'}} />
-                  <span className="text-cyan-400 font-xl text-l">Next-Gen ML Platform</span>
+              > */}
+                {/* <div className="inline-flex w-auto items-center rounded-xl border border-cyan-500/30 bg-gray-800/50 backdrop-blur-xl" style={{paddingLeft: '20px', paddingRight: '20px'}}> */}
+                  {/* <Sparkles className="h-14 w-4 text-cyan-400" style={{marginRight: '8px'}} /> */}
+                  {/* <span className="text-cyan-400 font-xl text-l">Next-Gen ML Platform</span> */}
                   {/* <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" style={{marginLeft: '8px'}} /> */}
-                </div>
-              </motion.div>
+                {/* </div> */}
+              {/* </motion.div> */}
 
               {/* Brain Icon */}
               <motion.div
@@ -169,7 +169,7 @@ export default function Home() {
               </motion.div>
 
                 {/* Decorative Horizontal Line with Sharp Edges */}
-                <motion.div
+                {/* <motion.div
                   initial={{ opacity: 0, scaleX: 0 }}
                   animate={{ opacity: 1, scaleX: 1 }}
                   transition={{ duration: 0.8, delay: 1.6 }}
@@ -177,18 +177,15 @@ export default function Home() {
                   style={{ marginTop: '60px' }}
                 >
                   <div className="relative w-[80vw] h-px">
-                    {/* Main line */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
-                    {/* Glowing effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent blur-sm" />
-                    {/* Sharp edges */}
                     <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-cyan-400 rotate-45" />
                     <div className="absolute -right-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-cyan-400 rotate-45" />
                   </div>
-                </motion.div>
+                </motion.div> */}
 
               {/* Stats */}
-              <motion.div
+              {/* <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 1.4 }}
@@ -216,13 +213,13 @@ export default function Home() {
                     </motion.div>
                   ))}
                 </div>
-              </motion.div>
+              </motion.div> */}
             </div>
           </div>
         </section>
 
          {/* Decorative Horizontal Line with Sharp Edges */}
-                <motion.div
+                {/* <motion.div
                   initial={{ opacity: 0, scaleX: 0 }}
                   animate={{ opacity: 1, scaleX: 1 }}
                   transition={{ duration: 0.8, delay: 1.6 }}
@@ -230,15 +227,12 @@ export default function Home() {
                   style={{    paddingBottom: '40px' }}
                 >
                   <div className="relative w-[80vw] h-px">
-                    {/* Main line */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
-                    {/* Glowing effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent blur-sm" />
-                    {/* Sharp edges */}
                     <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-cyan-400 rotate-45" />
                     <div className="absolute -right-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-cyan-400 rotate-45" />
                   </div>
-                </motion.div>
+                </motion.div> */}
 
         
 

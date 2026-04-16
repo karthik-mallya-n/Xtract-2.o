@@ -623,13 +623,37 @@ function ResultsPageContent() {
           return;
         }
 
-        // Fallback to localStorage
+        // Fallback to localStorage - but validate it's current
         const savedResults = localStorage.getItem('trainingResults');
+        const lastTrainedFileId = localStorage.getItem('lastTrainedFileId');
+        
         if (savedResults) {
-          const results = JSON.parse(savedResults);
-          setTrainingResults(results);
-          setIsLoading(false);
-          return;
+          try {
+            const results = JSON.parse(savedResults);
+            
+            // 🔧 VALIDATION: Check if results match current fileId
+            if (results.fileId && lastTrainedFileId && results.fileId !== lastTrainedFileId) {
+              console.warn('⚠️ WARNING: Loaded results do not match current fileId!');
+              console.warn(`  - Stored results fileId: ${results.fileId}`);
+              console.warn(`  - Current fileId: ${lastTrainedFileId}`);
+              // Clear stale results and show error
+              localStorage.removeItem('trainingResults');
+              setError('Training results are outdated. Please train a new model.');
+              setIsLoading(false);
+              return;
+            }
+            
+            console.log('✅ Loaded training results from localStorage');
+            if (results.fileId) {
+              console.log(`🔗 Results fileId: ${results.fileId}`);
+            }
+            setTrainingResults(results);
+            setIsLoading(false);
+            return;
+          } catch (parseErr) {
+            console.error('Failed to parse saved results:', parseErr);
+            localStorage.removeItem('trainingResults');
+          }
         }
 
         // If no results found, set error

@@ -251,6 +251,13 @@ export default function UploadPage() {
       if (response.success && response.file_id) {
         localStorage.setItem('currentFileId', response.file_id);
         localStorage.setItem('currentFileName', response.filename || selectedFile.name);
+        
+        // 🔧 CLEAR OLD TRAINING RESULTS WHEN UPLOADING NEW FILE
+        // This prevents confusion when switching between different datasets
+        localStorage.removeItem('trainingResults');
+        localStorage.removeItem('lastTrainedFileId');
+        console.log('🧹 Cleared old training results for new file upload');
+        
         router.push('/select-model');
       } else if (response.available_columns) {
         // Backend requests target column selection

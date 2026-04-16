@@ -801,7 +801,13 @@ def start_training():
                 try:
                     metadata_files = [f for f in os.listdir(model_dir) if f.startswith('metadata_') and f.endswith('.json')]
                     if metadata_files:
-                        metadata_path = os.path.join(model_dir, metadata_files[0])
+                        # 🔧 FIX: Load the LATEST metadata file (highest timestamp)
+                        # Metadata files are named with timestamps like metadata_20260228_084855.json
+                        # Sort them to get the most recent one
+                        metadata_files.sort(reverse=True)
+                        latest_metadata = metadata_files[0]
+                        metadata_path = os.path.join(model_dir, latest_metadata)
+                        print(f"📊 Loading latest metadata file (out of {len(metadata_files)}): {latest_metadata}")
                         with open(metadata_path, 'r') as f:
                             metadata = json.load(f)
                         feature_info = {
@@ -908,6 +914,15 @@ def start_training():
                 formatted_result['performance']['cluster_distribution'] = result.get('performance', {}).get('cluster_distribution', {})
         else:
             formatted_result = result
+        
+        # Log what's being sent back to frontend
+        print(f"\n{'='*100}")
+        print(f"📤 API RESPONSE BEING SENT TO FRONTEND")
+        print(f"{'='*100}")
+        print(f"✅ fileId being returned: {file_id}")
+        print(f"📊 feature_info.selected_columns: {feature_info.get('selected_columns', [])}")
+        print(f"📊 feature_info.feature_names: {feature_info.get('feature_names', [])}")
+        print(f"{'='*100}\n")
         
         return jsonify(to_json_safe({
             'success': True,
